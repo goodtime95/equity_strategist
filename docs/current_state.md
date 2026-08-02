@@ -77,17 +77,22 @@ The application can currently:
 - rolling historical volatility;
 - explicit annualization factor;
 - volatility computed from return series.
+- correlation between aligned return series;
+- rolling correlation;
+- automatic alignment on common dates;
+- rejection of insufficient overlapping observations.
 
 ---
 
 # Next Milestone
 
-Implement correlation metrics:
+Implement drawdown metrics:
 
-1. align two return series on common dates;
-2. compute Pearson correlation;
-3. produce rolling correlation;
-4. reject insufficient overlapping observations.
+1. drawdown series;
+2. maximum drawdown;
+3. peak date;
+4. trough date;
+5. recovery date when available.
 
 ---
 

@@ -23,8 +23,8 @@
 - [x] Price series builder
 - [x] Return computation
 - [x] Performance metrics
-- [ ] Volatility
-- [ ] Correlation
+- [x] Volatility
+- [x] Correlation
 - [ ] Drawdown
 - [ ] Rankings
 

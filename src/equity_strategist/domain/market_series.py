@@ -10,6 +10,7 @@ class SeriesKind(StrEnum):
 
     PRICE = "price"
     RETURN = "return"
+    CORRELATION = "correlation"
     RATE = "rate"
     VOLATILITY = "volatility"
     SPREAD = "spread"
