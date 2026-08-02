@@ -35,22 +35,12 @@ def main() -> None:
         use_adjusted_close=True,
     )
 
-    total_performance = compute_total_performance(
-        price_series
-    )
+    total_performance = compute_total_performance(price_series)
 
-    annualized_performance = (
-        compute_annualized_performance(price_series)
-    )
+    annualized_performance = compute_annualized_performance(price_series)
 
-    print(
-        "Performance totale : "
-        f"{total_performance:.2%}"
-    )
-    print(
-        "Performance annualisée : "
-        f"{annualized_performance:.2%}"
-    )
+    print(f"Performance totale : {total_performance:.2%}")
+    print(f"Performance annualisée : {annualized_performance:.2%}")
 
 
 if __name__ == "__main__":

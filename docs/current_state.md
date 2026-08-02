@@ -73,17 +73,21 @@ The application can currently:
 - period performance;
 - annualized performance;
 - cumulative performance series.
+- annualized historical volatility;
+- rolling historical volatility;
+- explicit annualization factor;
+- volatility computed from return series.
 
 ---
 
 # Next Milestone
 
-Implement volatility metrics:
+Implement correlation metrics:
 
-1. historical volatility;
-2. configurable annualization factor;
-3. volatility computed from simple or logarithmic returns;
-4. rolling volatility.
+1. align two return series on common dates;
+2. compute Pearson correlation;
+3. produce rolling correlation;
+4. reject insufficient overlapping observations.
 
 ---
 
