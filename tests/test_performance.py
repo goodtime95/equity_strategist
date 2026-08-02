@@ -15,7 +15,7 @@ from equity_strategist.domain.market_series import (
 )
 
 
-def build_price_series() -> MarketSeries:
+def extract_price_series() -> MarketSeries:
     values = pd.Series(
         [100.0, 110.0, 121.0],
         index=pd.to_datetime(
@@ -36,14 +36,14 @@ def build_price_series() -> MarketSeries:
 
 
 def test_compute_total_performance() -> None:
-    result = compute_total_performance(build_price_series())
+    result = compute_total_performance(extract_price_series())
 
     assert result == pytest.approx(0.21)
 
 
 def test_compute_period_performance() -> None:
     result = compute_period_performance(
-        build_price_series(),
+        extract_price_series(),
         start_date=date(2020, 1, 1),
         end_date=date(2020, 7, 1),
     )
@@ -53,7 +53,7 @@ def test_compute_period_performance() -> None:
 
 def test_compute_period_performance_uses_available_dates() -> None:
     result = compute_period_performance(
-        build_price_series(),
+        extract_price_series(),
         start_date=date(2020, 1, 2),
         end_date=date(2021, 1, 1),
     )
@@ -62,7 +62,7 @@ def test_compute_period_performance_uses_available_dates() -> None:
 
 
 def test_compute_annualized_performance() -> None:
-    result = compute_annualized_performance(build_price_series())
+    result = compute_annualized_performance(extract_price_series())
 
     assert result == pytest.approx(
         0.21,
@@ -71,7 +71,7 @@ def test_compute_annualized_performance() -> None:
 
 
 def test_compute_cumulative_performance() -> None:
-    result = compute_cumulative_performance(build_price_series())
+    result = compute_cumulative_performance(extract_price_series())
 
     assert result.kind == SeriesKind.RETURN
     assert result.unit == "decimal"
@@ -112,7 +112,7 @@ def test_period_performance_rejects_invalid_dates() -> None:
         match="start_date",
     ):
         compute_period_performance(
-            build_price_series(),
+            extract_price_series(),
             start_date=date(2021, 1, 1),
             end_date=date(2020, 1, 1),
         )

@@ -12,7 +12,7 @@ from equity_strategist.domain.market_series import (
 )
 
 
-def build_price_series() -> MarketSeries:
+def extract_price_series() -> MarketSeries:
     values = pd.Series(
         [100.0, 105.0, 102.9],
         index=pd.to_datetime(
@@ -33,7 +33,7 @@ def build_price_series() -> MarketSeries:
 
 
 def test_compute_simple_returns() -> None:
-    price_series = build_price_series()
+    price_series = extract_price_series()
 
     returns = compute_returns(
         price_series,
@@ -49,7 +49,7 @@ def test_compute_simple_returns() -> None:
 
 
 def test_compute_log_returns() -> None:
-    price_series = build_price_series()
+    price_series = extract_price_series()
 
     returns = compute_returns(
         price_series,

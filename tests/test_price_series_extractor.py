@@ -4,20 +4,21 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.market_series import SeriesKind
-from equity_strategist.domain.models import Asset, PriceBar
-from equity_strategist.series_builders.prices import build_price_series
+from equity_strategist.domain.observations import DailyPriceObservation
+from equity_strategist.extractors.price_series import extract_price_series
 
 
-def test_build_adjusted_price_series() -> None:
+def test_extract_adjusted_price_series() -> None:
     asset = Asset(
         symbol="MC.PA",
         name="LVMH",
         currency="EUR",
     )
 
-    prices = [
-        PriceBar(
+    observations = [
+        DailyPriceObservation(
             asset=asset,
             date=date(2020, 3, 16),
             open=Decimal("300.00"),
@@ -27,7 +28,7 @@ def test_build_adjusted_price_series() -> None:
             adjusted_close=Decimal("265.56"),
             volume=1_000_000,
         ),
-        PriceBar(
+        DailyPriceObservation(
             asset=asset,
             date=date(2020, 3, 13),
             open=Decimal("310.00"),
@@ -39,9 +40,9 @@ def test_build_adjusted_price_series() -> None:
         ),
     ]
 
-    series = build_price_series(
+    series = extract_price_series(
         asset=asset,
-        prices=prices,
+        observations=observations,
         use_adjusted_close=True,
     )
 
@@ -53,12 +54,12 @@ def test_build_adjusted_price_series() -> None:
     assert series.values.iloc[0] == pytest.approx(280.99)
 
 
-def test_build_price_series_rejects_another_asset() -> None:
+def test_extract_price_series_rejects_another_asset() -> None:
     lvmh = Asset(symbol="MC.PA", name="LVMH", currency="EUR")
     hermes = Asset(symbol="RMS.PA", name="Hermès", currency="EUR")
 
-    prices = [
-        PriceBar(
+    observations = [
+        DailyPriceObservation(
             asset=hermes,
             date=date(2020, 3, 13),
             open=Decimal("600.00"),
@@ -71,7 +72,7 @@ def test_build_price_series_rejects_another_asset() -> None:
     ]
 
     with pytest.raises(ValueError, match="requested asset"):
-        build_price_series(
+        extract_price_series(
             asset=lvmh,
-            prices=prices,
+            observations=observations,
         )

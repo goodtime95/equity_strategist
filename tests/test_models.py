@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from equity_strategist.domain.models import Asset, PriceBar
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.observations import DailyPriceObservation
 
 
 def test_asset_creation() -> None:
@@ -19,7 +20,7 @@ def test_asset_creation() -> None:
 def test_price_bar_creation() -> None:
     asset = Asset(symbol="MC.PAR", name="LVMH")
 
-    price = PriceBar(
+    price = DailyPriceObservation(
         asset=asset,
         date=date(2020, 3, 16),
         open=Decimal("315.00"),

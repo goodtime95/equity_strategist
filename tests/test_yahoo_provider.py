@@ -4,7 +4,7 @@ from decimal import Decimal
 import pandas as pd
 
 from equity_strategist.data_providers.yahoo import YahooFinanceProvider
-from equity_strategist.domain.models import Asset
+from equity_strategist.domain.asset import Asset
 
 
 def test_quote_to_asset() -> None:
@@ -36,7 +36,7 @@ def test_quote_without_symbol_is_ignored() -> None:
     assert asset is None
 
 
-def test_row_to_price_bar() -> None:
+def test_row_to_daily_price_observation() -> None:
     asset = Asset(symbol="MC.PA", name="LVMH")
 
     row = pd.Series(
@@ -55,7 +55,7 @@ def test_row_to_price_bar() -> None:
         tz="Europe/Paris",
     )
 
-    price = YahooFinanceProvider._row_to_price_bar(
+    price = YahooFinanceProvider._row_to_observation(
         asset,
         timestamp,
         row,

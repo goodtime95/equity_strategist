@@ -7,9 +7,9 @@ from equity_strategist.compute.returns import (
 from equity_strategist.data_providers.yahoo import (
     YahooFinanceProvider,
 )
-from equity_strategist.domain.models import Asset
-from equity_strategist.series_builders.prices import (
-    build_price_series,
+from equity_strategist.domain.asset import Asset
+from equity_strategist.extractors.price_series import (
+    extract_price_series,
 )
 
 
@@ -29,7 +29,7 @@ def main() -> None:
         end_date=date(2020, 3, 20),
     )
 
-    price_series = build_price_series(
+    price_series = extract_price_series(
         asset=asset,
         prices=prices,
         use_adjusted_close=True,

@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from equity_strategist.domain.models import Asset, PriceBar
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.observations import DailyPriceObservation
 from equity_strategist.tools.prices import PriceTool
 
 
@@ -14,9 +15,9 @@ class FakeMarketDataProvider:
         asset: Asset,
         start_date: date,
         end_date: date,
-    ) -> list[PriceBar]:
+    ) -> list[DailyPriceObservation]:
         return [
-            PriceBar(
+            DailyPriceObservation(
                 asset=asset,
                 date=date(2020, 3, 13),
                 open=Decimal("320.00"),

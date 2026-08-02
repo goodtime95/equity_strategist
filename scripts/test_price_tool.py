@@ -3,7 +3,7 @@ from datetime import date
 from equity_strategist.data_providers.yahoo import (
     YahooFinanceProvider,
 )
-from equity_strategist.domain.models import Asset
+from equity_strategist.domain.asset import Asset
 from equity_strategist.tools.prices import PriceTool
 
 

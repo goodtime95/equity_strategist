@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from equity_strategist.domain.models import Asset, PriceOnDateResult
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.services.market_queries import MarketQueryService
 
 

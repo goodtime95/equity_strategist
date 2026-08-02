@@ -1,10 +1,8 @@
 from datetime import date, timedelta
 
 from equity_strategist.data_providers.base import MarketDataProvider
-from equity_strategist.domain.models import (
-    Asset,
-    PriceOnDateResult,
-)
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.results import PriceOnDateResult
 
 
 class PriceTool:

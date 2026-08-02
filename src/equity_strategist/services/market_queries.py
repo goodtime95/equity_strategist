@@ -1,6 +1,6 @@
 from datetime import date
 
-from equity_strategist.domain.models import PriceOnDateResult
+from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
 

@@ -5,7 +5,8 @@ from typing import Any
 import pandas as pd
 import yfinance as yf
 
-from equity_strategist.domain.models import Asset, PriceBar
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.observations import DailyPriceObservation
 
 
 class YahooFinanceProvider:
@@ -39,7 +40,7 @@ class YahooFinanceProvider:
         asset: Asset,
         start_date: date,
         end_date: date,
-    ) -> list[PriceBar]:
+    ) -> list[DailyPriceObservation]:
         """Return daily OHLCV data over an inclusive interval."""
         if start_date > end_date:
             raise ValueError("start_date must be before or equal to end_date")
@@ -59,7 +60,7 @@ class YahooFinanceProvider:
             return []
 
         return [
-            self._row_to_price_bar(asset, index, row)
+            self._row_to_observation(asset, index, row)
             for index, row in history.iterrows()
         ]
 
@@ -83,15 +84,15 @@ class YahooFinanceProvider:
         )
 
     @staticmethod
-    def _row_to_price_bar(
+    def _row_to_observation(
         asset: Asset,
         index: Any,
         row: pd.Series,
-    ) -> PriceBar:
+    ) -> DailyPriceObservation:
         adjusted_close = row.get("Adj Close")
         volume = row.get("Volume")
 
-        return PriceBar(
+        return DailyPriceObservation(
             asset=asset,
             date=index.date(),
             open=Decimal(str(row["Open"])),

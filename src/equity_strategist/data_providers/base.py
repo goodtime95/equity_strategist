@@ -1,11 +1,14 @@
 from datetime import date
 from typing import Protocol
 
-from equity_strategist.domain.models import Asset, PriceBar
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.observations import (
+    DailyPriceObservation,
+)
 
 
 class MarketDataProvider(Protocol):
-    """Contract implemented by every external market-data provider."""
+    """Contract implemented by external market-data providers."""
 
     def search_assets(self, query: str) -> list[Asset]:
         """Find assets matching a company name or ticker."""
@@ -16,6 +19,6 @@ class MarketDataProvider(Protocol):
         asset: Asset,
         start_date: date,
         end_date: date,
-    ) -> list[PriceBar]:
-        """Return daily market data over the requested period."""
+    ) -> list[DailyPriceObservation]:
+        """Return daily market observations over a date interval."""
         ...

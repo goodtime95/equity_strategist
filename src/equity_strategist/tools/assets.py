@@ -1,5 +1,5 @@
 from equity_strategist.data_providers.base import MarketDataProvider
-from equity_strategist.domain.models import Asset
+from equity_strategist.domain.asset import Asset
 from equity_strategist.tools.exceptions import (
     AmbiguousAssetError,
     AssetNotFoundError,

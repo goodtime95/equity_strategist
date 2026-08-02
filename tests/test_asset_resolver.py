@@ -2,7 +2,8 @@ from datetime import date
 
 import pytest
 
-from equity_strategist.domain.models import Asset, PriceBar
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.observations import DailyPriceObservation
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.exceptions import (
     AmbiguousAssetError,
@@ -22,7 +23,7 @@ class FakeMarketDataProvider:
         asset: Asset,
         start_date: date,
         end_date: date,
-    ) -> list[PriceBar]:
+    ) -> list[DailyPriceObservation]:
         return []
 
 
