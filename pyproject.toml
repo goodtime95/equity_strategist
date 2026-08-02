@@ -8,7 +8,10 @@ version = "0.1.0"
 description = "Conversational equity market analysis agent"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "pandas>=2.2",
+    "yfinance>=0.2",
+]
 
 [project.optional-dependencies]
 dev = [

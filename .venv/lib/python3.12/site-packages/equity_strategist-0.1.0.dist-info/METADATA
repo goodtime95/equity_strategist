@@ -4,6 +4,8 @@ Version: 0.1.0
 Summary: Conversational equity market analysis agent
 Requires-Python: <3.13,>=3.12
 Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.2
+Requires-Dist: yfinance>=0.2
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
