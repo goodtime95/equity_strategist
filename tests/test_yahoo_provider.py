@@ -3,8 +3,8 @@ from decimal import Decimal
 
 import pandas as pd
 
+from equity_strategist.data_providers.yahoo import YahooFinanceProvider
 from equity_strategist.domain.models import Asset
-from equity_strategist.providers.yahoo import YahooFinanceProvider
 
 
 def test_quote_to_asset() -> None:

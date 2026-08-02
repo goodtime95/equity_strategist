@@ -1,4 +1,4 @@
-from equity_strategist.providers.yahoo import YahooFinanceProvider
+from equity_strategist.data_providers.yahoo import YahooFinanceProvider
 
 
 def main() -> None:
