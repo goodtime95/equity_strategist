@@ -66,19 +66,20 @@ The application can currently:
 - convert Yahoo Finance data into domain objects;
 - retrieve the latest available market price for a requested date;
 - correctly handle weekends.
+- generic MarketSeries representation;
+- conversion of PriceBar observations into a price series;
+- simple and logarithmic return computation.
 
 ---
 
 # Next Milestone
 
-Introduce `MarketSeries`, the central time-series object of the Financial Reasoning Framework.
+Implement performance metrics based on MarketSeries:
 
-Initial scope:
-
-1. define series types;
-2. validate dated numerical observations;
-3. convert `PriceBar` objects into a price series;
-4. prepare the input format used by future Compute Tools.
+1. cumulative performance;
+2. annualized return;
+3. period performance;
+4. handling of incomplete periods.
 
 ---
 

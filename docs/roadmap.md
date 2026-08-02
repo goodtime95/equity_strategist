@@ -17,10 +17,12 @@
 - [ ] Automatic refresh
 - [ ] Historical persistence
 
-## Phase 3 — Compute Tools
+## Phase 3 — Quantitative Engine
 
-- [ ] Returns
-- [ ] Performance
+- [x] MarketSeries
+- [x] Price series builder
+- [x] Return computation
+- [ ] Performance metrics
 - [ ] Volatility
 - [ ] Correlation
 - [ ] Drawdown
