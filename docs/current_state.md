@@ -71,17 +71,14 @@ The application can currently:
 
 # Next Milestone
 
-Develop reusable Compute Tools.
+Introduce `MarketSeries`, the central time-series object of the Financial Reasoning Framework.
 
-Priority:
+Initial scope:
 
-1. Returns
-2. Performance
-3. Volatility
-4. Correlation
-5. Drawdown
-
-These tools will become the quantitative engine of the Financial Reasoning Framework.
+1. define series types;
+2. validate dated numerical observations;
+3. convert `PriceBar` objects into a price series;
+4. prepare the input format used by future Compute Tools.
 
 ---
 

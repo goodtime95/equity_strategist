@@ -47,3 +47,65 @@ Tools never instantiate providers.
 Providers are assembled inside app.py.
 
 All tools depend only on MarketDataProvider.
+
+## 2026-08-02
+
+### PriceSeries as the central quantitative object
+
+Decision
+
+Introduce a `PriceSeries` domain object before implementing quantitative metrics.
+
+Motivation
+
+Most financial computations operate on a time series rather than directly on a market data provider.
+
+By introducing a dedicated `PriceSeries`, all Compute Tools will share the same input representation.
+
+Consequences
+
+- Data Providers retrieve raw market data.
+- PriceSeries represents normalized historical prices.
+- Compute Tools operate only on PriceSeries.
+- Business services orchestrate these building blocks.
+
+---
+
+## 2026-08-02 — MarketSeries as the central time-series object
+
+### Decision
+
+Introduce a generic `MarketSeries` domain object as the central time-series representation of the Financial Reasoning Framework.
+
+A `MarketSeries` may represent:
+
+- prices;
+- returns;
+- rates;
+- volatility;
+- spreads;
+- volumes;
+- other market time series.
+
+The semantic nature of the data is identified through a `SeriesKind` value and business metadata.
+
+### Motivation
+
+Most quantitative computations operate on time series with the same structural characteristics:
+
+- dated observations;
+- numerical values;
+- units;
+- identifiers;
+- metadata;
+- data-quality requirements.
+
+Creating separate classes such as `PriceSeries`, `RateSeries`, and `VolatilitySeries` immediately would introduce duplication before distinct behaviours are known.
+
+### Consequences
+
+- Data Providers retrieve and normalize raw external data.
+- Series builders convert domain observations into `MarketSeries`.
+- Compute Tools operate primarily on `MarketSeries`.
+- Specialized subclasses will only be introduced if materially different behaviours emerge.
+- Pandas remains the internal numerical representation, while `MarketSeries` adds financial meaning and validation.
