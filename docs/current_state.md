@@ -69,17 +69,21 @@ The application can currently:
 - generic MarketSeries representation;
 - conversion of PriceBar observations into a price series;
 - simple and logarithmic return computation.
+- total performance;
+- period performance;
+- annualized performance;
+- cumulative performance series.
 
 ---
 
 # Next Milestone
 
-Implement performance metrics based on MarketSeries:
+Implement volatility metrics:
 
-1. cumulative performance;
-2. annualized return;
-3. period performance;
-4. handling of incomplete periods.
+1. historical volatility;
+2. configurable annualization factor;
+3. volatility computed from simple or logarithmic returns;
+4. rolling volatility.
 
 ---
 

@@ -22,7 +22,7 @@
 - [x] MarketSeries
 - [x] Price series builder
 - [x] Return computation
-- [ ] Performance metrics
+- [x] Performance metrics
 - [ ] Volatility
 - [ ] Correlation
 - [ ] Drawdown
