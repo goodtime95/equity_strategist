@@ -9,3 +9,5 @@ class Asset:
     name: str | None = None
     exchange: str | None = None
     currency: str | None = None
+    isin: str | None = None
+    aliases: tuple[str, ...] = ()

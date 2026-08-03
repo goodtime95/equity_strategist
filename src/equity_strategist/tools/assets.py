@@ -1,4 +1,4 @@
-from equity_strategist.data_providers.base import MarketDataProvider
+from equity_strategist.asset_registry.registry import AssetRegistry
 from equity_strategist.domain.asset import Asset
 from equity_strategist.tools.exceptions import (
     AmbiguousAssetError,
@@ -7,10 +7,10 @@ from equity_strategist.tools.exceptions import (
 
 
 class AssetResolver:
-    """Resolve a company name or ticker into a financial asset."""
+    """Resolve a user query into a registered financial asset."""
 
-    def __init__(self, provider: MarketDataProvider) -> None:
-        self.provider = provider
+    def __init__(self, registry: AssetRegistry) -> None:
+        self.registry = registry
 
     def resolve(
         self,
@@ -18,59 +18,29 @@ class AssetResolver:
         preferred_currency: str | None = None,
         preferred_exchange: str | None = None,
     ) -> Asset:
-        """Return the most relevant asset matching the query."""
+        """Return the most relevant registered asset."""
         clean_query = query.strip()
 
         if not clean_query:
             raise AssetNotFoundError("Asset query cannot be empty")
 
-        assets = self.provider.search_assets(clean_query)
-
-        if not assets:
-            raise AssetNotFoundError(f"No asset found for query: {clean_query}")
-
-        exact_symbol_matches = [
-            asset
-            for asset in assets
-            if asset.symbol.casefold() == clean_query.casefold()
-        ]
-
-        if len(exact_symbol_matches) == 1:
-            return exact_symbol_matches[0]
-
-        exact_name_matches = [
-            asset
-            for asset in assets
-            if asset.name and asset.name.casefold() == clean_query.casefold()
-        ]
-
-        if len(exact_name_matches) == 1:
-            return exact_name_matches[0]
+        assets = self.registry.search(clean_query)
 
         if preferred_exchange is not None:
-            exchange_matches = [
+            assets = [
                 asset
                 for asset in assets
                 if asset.exchange
                 and preferred_exchange.casefold() in asset.exchange.casefold()
             ]
 
-            if len(exchange_matches) == 1:
-                return exchange_matches[0]
-
-            if exchange_matches:
-                assets = exchange_matches
-
         if preferred_currency is not None:
-            currency_matches = [
-                asset for asset in assets if asset.currency == preferred_currency
-            ]
+            assets = [asset for asset in assets if asset.currency == preferred_currency]
 
-            if len(currency_matches) == 1:
-                return currency_matches[0]
-
-            if currency_matches:
-                assets = currency_matches
+        if not assets:
+            raise AssetNotFoundError(
+                f"No registered asset found for query: {clean_query}"
+            )
 
         if len(assets) == 1:
             return assets[0]
@@ -79,4 +49,6 @@ class AssetResolver:
             f"{asset.symbol} ({asset.name or 'Unknown'})" for asset in assets[:5]
         )
 
-        raise AmbiguousAssetError(f"Several assets match '{clean_query}': {candidates}")
+        raise AmbiguousAssetError(
+            f"Several registered assets match '{clean_query}': {candidates}"
+        )

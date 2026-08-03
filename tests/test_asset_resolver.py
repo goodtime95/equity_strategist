@@ -1,9 +1,7 @@
-from datetime import date
-
 import pytest
 
+from equity_strategist.asset_registry.registry import AssetRegistry
 from equity_strategist.domain.asset import Asset
-from equity_strategist.domain.observations import DailyPriceObservation
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.exceptions import (
     AmbiguousAssetError,
@@ -11,62 +9,57 @@ from equity_strategist.tools.exceptions import (
 )
 
 
-class FakeMarketDataProvider:
-    def __init__(self, assets: list[Asset]) -> None:
-        self.assets = assets
-
-    def search_assets(self, query: str) -> list[Asset]:
-        return self.assets
-
-    def get_daily_prices(
-        self,
-        asset: Asset,
-        start_date: date,
-        end_date: date,
-    ) -> list[DailyPriceObservation]:
-        return []
-
-
-def test_resolve_exact_symbol() -> None:
-    provider = FakeMarketDataProvider(
+def build_registry() -> AssetRegistry:
+    return AssetRegistry(
         [
-            Asset(
-                symbol="LVMUY",
-                name="LVMH ADR",
-                currency="USD",
-            ),
             Asset(
                 symbol="MC.PA",
                 name="LVMH",
+                exchange="Paris",
                 currency="EUR",
+                isin="FR0000121014",
+                aliases=("Louis Vuitton",),
+            ),
+            Asset(
+                symbol="LVMUY",
+                name="LVMH ADR",
+                exchange="OTC Markets",
+                currency="USD",
+                aliases=("LVMH",),
             ),
         ]
     )
 
-    resolver = AssetResolver(provider)
+
+def test_resolve_exact_symbol() -> None:
+    resolver = AssetResolver(build_registry())
 
     result = resolver.resolve("MC.PA")
 
     assert result.symbol == "MC.PA"
 
 
-def test_resolve_using_preferred_currency() -> None:
-    provider = FakeMarketDataProvider(
-        [
-            Asset(
-                symbol="LVMUY",
-                name="LVMH ADR",
-                currency="USD",
-            ),
-            Asset(
-                symbol="MC.PA",
-                name="LVMH",
-                currency="EUR",
-            ),
-        ]
+def test_resolve_exact_isin() -> None:
+    resolver = AssetResolver(build_registry())
+
+    result = resolver.resolve("FR0000121014")
+
+    assert result.symbol == "MC.PA"
+
+
+def test_resolve_alias_using_preferred_exchange() -> None:
+    resolver = AssetResolver(build_registry())
+
+    result = resolver.resolve(
+        "LVMH",
+        preferred_exchange="Paris",
     )
 
-    resolver = AssetResolver(provider)
+    assert result.symbol == "MC.PA"
+
+
+def test_resolve_alias_using_preferred_currency() -> None:
+    resolver = AssetResolver(build_registry())
 
     result = resolver.resolve(
         "LVMH",
@@ -77,49 +70,14 @@ def test_resolve_using_preferred_currency() -> None:
 
 
 def test_resolve_raises_when_no_asset_is_found() -> None:
-    resolver = AssetResolver(FakeMarketDataProvider([]))
+    resolver = AssetResolver(build_registry())
 
     with pytest.raises(AssetNotFoundError):
         resolver.resolve("Unknown company")
 
 
 def test_resolve_raises_when_query_is_ambiguous() -> None:
-    provider = FakeMarketDataProvider(
-        [
-            Asset(symbol="ABC.PA", name="ABC", currency="EUR"),
-            Asset(symbol="ABC.L", name="ABC", currency="GBP"),
-        ]
-    )
-
-    resolver = AssetResolver(provider)
+    resolver = AssetResolver(build_registry())
 
     with pytest.raises(AmbiguousAssetError):
-        resolver.resolve("ABC")
-
-
-def test_resolve_using_preferred_exchange() -> None:
-    provider = FakeMarketDataProvider(
-        [
-            Asset(
-                symbol="LVMUY",
-                name="LVMH ADR",
-                exchange="OTC Markets",
-                currency="USD",
-            ),
-            Asset(
-                symbol="MC.PA",
-                name="LVMH",
-                exchange="Paris",
-                currency="EUR",
-            ),
-        ]
-    )
-
-    resolver = AssetResolver(provider)
-
-    result = resolver.resolve(
-        "LVMH",
-        preferred_exchange="Paris",
-    )
-
-    assert result.symbol == "MC.PA"
+        resolver.resolve("LVMH")

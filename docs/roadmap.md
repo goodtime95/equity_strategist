@@ -16,6 +16,7 @@
 - [ ] Local cache
 - [ ] Automatic refresh
 - [ ] Historical persistence
+- [x] Internal Asset Registry
 
 ## Phase 3 — Quantitative Engine
 

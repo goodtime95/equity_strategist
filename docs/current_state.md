@@ -85,6 +85,10 @@ The application can currently:
 - maximum drawdown;
 - peak and trough dates;
 - recovery date when available.
+- internal asset registry;
+- resolution by ticker, name, alias and ISIN;
+- provider-independent asset identity;
+- Yahoo Finance used only for market-data retrieval.
 
 ---
 

@@ -109,3 +109,36 @@ Creating separate classes such as `PriceSeries`, `RateSeries`, and `VolatilitySe
 - Compute Tools operate primarily on `MarketSeries`.
 - Specialized subclasses will only be introduced if materially different behaviours emerge.
 - Pandas remains the internal numerical representation, while `MarketSeries` adds financial meaning and validation.
+
+---
+
+## 2026-08-03 — Internal Asset Registry
+
+### Decision
+
+Asset identity and name resolution are handled by an internal registry.
+
+Yahoo Finance is used only to retrieve market data for an already identified asset.
+
+### Motivation
+
+Provider search results may contain several listings, ADRs, OTC instruments, certificates or secondary quotations.
+
+For example, searching for LVMH through Yahoo may return several instruments and does not reliably guarantee selection of the primary Paris listing.
+
+The application therefore needs its own stable representation of asset identity.
+
+### Consequences
+
+The data flow becomes:
+
+User query
+→ AssetResolver
+→ AssetRegistry
+→ identified Asset
+→ Data Provider
+→ market observations
+
+The MVP registry contains only the main equities and indices required by the initial use cases.
+
+The registry can later be replaced by a larger reference dataset without modifying the market-data providers or quantitative engine.
