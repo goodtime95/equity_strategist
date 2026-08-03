@@ -25,7 +25,7 @@
 - [x] Performance metrics
 - [x] Volatility
 - [x] Correlation
-- [ ] Drawdown
+- [x] Drawdown
 - [ ] Rankings
 
 ## Phase 4 — Conversation

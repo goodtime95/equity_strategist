@@ -81,6 +81,10 @@ The application can currently:
 - rolling correlation;
 - automatic alignment on common dates;
 - rejection of insufficient overlapping observations.
+- drawdown time series;
+- maximum drawdown;
+- peak and trough dates;
+- recovery date when available.
 
 ---
 

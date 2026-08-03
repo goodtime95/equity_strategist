@@ -15,6 +15,7 @@ class SeriesKind(StrEnum):
     VOLATILITY = "volatility"
     SPREAD = "spread"
     VOLUME = "volume"
+    DRAWDOWN = "drawdown"
 
 
 @dataclass(frozen=True)
