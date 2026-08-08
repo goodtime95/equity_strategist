@@ -10,6 +10,11 @@ from equity_strategist.services.market_series import MarketSeriesService
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
+from equity_strategist.strategists.equity_strategist import (
+    EquityStrategist,
+)
+from equity_strategist.strategists.executor import EquityExecutor
+from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
 
@@ -54,4 +59,19 @@ def build_market_dataset_service() -> MarketDatasetService:
 
     return MarketDatasetService(
         market_series_service=market_series_service,
+    )
+
+
+def build_equity_strategist() -> EquityStrategist:
+    """Build the deterministic Equity Strategist pipeline."""
+    planner = EquityPlanner()
+
+    executor = EquityExecutor(
+        volatility_analysis_service=(build_volatility_analysis_service()),
+        market_query_service=build_market_query_service(),
+    )
+
+    return EquityStrategist(
+        planner=planner,
+        executor=executor,
     )
