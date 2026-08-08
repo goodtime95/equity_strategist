@@ -10,6 +10,9 @@ from equity_strategist.domain.analysis_results import (
 from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
+from equity_strategist.understanding.rule_based import (
+    RuleBasedUnderstanding,
+)
 
 
 class EquityStrategist:
@@ -17,11 +20,24 @@ class EquityStrategist:
 
     def __init__(
         self,
+        understanding: RuleBasedUnderstanding,
         planner: EquityPlanner,
         executor: EquityExecutor,
     ) -> None:
+        self.understanding = understanding
         self.planner = planner
         self.executor = executor
+
+    def answer(
+        self,
+        question: str,
+    ) -> str:
+        """Answer a natural-language equity question."""
+        request = self.understand(question)
+        plan = self.planner.plan(request)
+        execution = self.executor.execute(plan)
+
+        return self.interpret(execution)
 
     def answer_request(
         self,
@@ -37,14 +53,8 @@ class EquityStrategist:
         self,
         question: str,
     ) -> AnalysisRequest:
-        """
-        Temporary deterministic understanding layer.
-
-        This method will later be replaced by LLM-based parsing.
-        """
-        raise NotImplementedError(
-            "Natural-language understanding is not implemented yet"
-        )
+        """Convert natural language into a structured request."""
+        return self.understanding.understand(question)
 
     def interpret(
         self,

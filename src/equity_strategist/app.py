@@ -17,6 +17,9 @@ from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
+from equity_strategist.understanding.rule_based import (
+    RuleBasedUnderstanding,
+)
 
 
 def build_market_query_service() -> MarketQueryService:
@@ -74,4 +77,5 @@ def build_equity_strategist() -> EquityStrategist:
     return EquityStrategist(
         planner=planner,
         executor=executor,
+        understanding=RuleBasedUnderstanding(),
     )

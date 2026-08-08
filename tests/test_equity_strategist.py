@@ -73,6 +73,7 @@ def test_interpret_volatility_result():
     )
 
     strategist = EquityStrategist(
+        understanding=None,
         planner=None,
         executor=None,
     )
@@ -126,6 +127,7 @@ def test_interpret_price_result():
     )
 
     strategist = EquityStrategist(
+        understanding=None,
         planner=None,
         executor=None,
     )
