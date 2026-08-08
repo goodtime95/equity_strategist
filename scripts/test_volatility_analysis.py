@@ -18,21 +18,14 @@ def main() -> None:
         end_date=date(2025, 12, 31),
     )
 
-    print(
-        f"Period: {result.start_date} -> "
-        f"{result.end_date}"
-    )
+    print(f"Period: {result.start_date} -> {result.end_date}")
     print()
 
     for rank, item in enumerate(
         result.items,
         start=1,
     ):
-        print(
-            f"{rank}. {item.name} "
-            f"({item.symbol}) : "
-            f"{item.volatility:.2%}"
-        )
+        print(f"{rank}. {item.name} ({item.symbol}) : {item.volatility:.2%}")
 
 
 if __name__ == "__main__":

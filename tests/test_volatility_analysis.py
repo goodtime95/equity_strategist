@@ -5,6 +5,7 @@ import pytest
 
 from equity_strategist.compute.returns import ReturnMethod
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.market_dataset import MarketDataset
 from equity_strategist.domain.market_series import (
     MarketSeries,
     SeriesKind,
@@ -14,36 +15,32 @@ from equity_strategist.services.volatility_analysis import (
 )
 
 
-class FakeMarketSeriesService:
-    def get_price_series(
+class FakeMarketDatasetService:
+    def build_price_dataset(
         self,
-        asset_query: str,
+        asset_queries: list[str],
         start_date: date,
         end_date: date,
-        preferred_exchange: str | None = None,
-        preferred_currency: str | None = None,
+        universe: str | None = None,
         use_adjusted_close: bool = True,
-    ) -> MarketSeries:
-        if asset_query == "LVMH":
-            asset = Asset(
-                symbol="MC.PA",
-                name="LVMH",
-                currency="EUR",
-            )
-            values = [100.0, 102.0, 101.0, 103.0]
-        else:
-            asset = Asset(
-                symbol="RMS.PA",
-                name="Hermès",
-                currency="EUR",
-            )
-            values = [100.0, 110.0, 95.0, 115.0]
+    ) -> MarketDataset:
+        lvmh = Asset(
+            symbol="MC.PA",
+            name="LVMH",
+            currency="EUR",
+        )
 
-        return MarketSeries(
-            identifier=asset.symbol,
+        hermes = Asset(
+            symbol="RMS.PA",
+            name="Hermès",
+            currency="EUR",
+        )
+
+        lvmh_series = MarketSeries(
+            identifier="MC.PA",
             kind=SeriesKind.PRICE,
             values=pd.Series(
-                values,
+                [100.0, 102.0, 101.0, 103.0],
                 index=pd.to_datetime(
                     [
                         "2020-01-01",
@@ -54,12 +51,40 @@ class FakeMarketSeriesService:
                 ),
             ),
             unit="EUR",
-            metadata={"asset": asset},
+            metadata={"asset": lvmh},
+        )
+
+        hermes_series = MarketSeries(
+            identifier="RMS.PA",
+            kind=SeriesKind.PRICE,
+            values=pd.Series(
+                [100.0, 110.0, 95.0, 115.0],
+                index=pd.to_datetime(
+                    [
+                        "2020-01-01",
+                        "2020-01-02",
+                        "2020-01-03",
+                        "2020-01-06",
+                    ]
+                ),
+            ),
+            unit="EUR",
+            metadata={"asset": hermes},
+        )
+
+        return MarketDataset(
+            series_by_symbol={
+                "MC.PA": lvmh_series,
+                "RMS.PA": hermes_series,
+            },
+            universe=universe,
         )
 
 
 def test_compare_volatility_ranks_assets() -> None:
-    service = VolatilityAnalysisService(market_series_service=FakeMarketSeriesService())
+    service = VolatilityAnalysisService(
+        market_dataset_service=FakeMarketDatasetService()
+    )
 
     result = service.compare(
         asset_queries=["LVMH", "Hermès"],
@@ -76,7 +101,9 @@ def test_compare_volatility_ranks_assets() -> None:
 
 
 def test_compare_volatility_requires_two_assets() -> None:
-    service = VolatilityAnalysisService(market_series_service=FakeMarketSeriesService())
+    service = VolatilityAnalysisService(
+        market_dataset_service=FakeMarketDatasetService()
+    )
 
     with pytest.raises(
         ValueError,

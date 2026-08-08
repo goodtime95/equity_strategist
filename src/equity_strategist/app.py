@@ -2,6 +2,9 @@ from equity_strategist.asset_registry import (
     build_default_asset_registry,
 )
 from equity_strategist.data_providers.yahoo import YahooFinanceProvider
+from equity_strategist.services.market_dataset import (
+    MarketDatasetService,
+)
 from equity_strategist.services.market_queries import MarketQueryService
 from equity_strategist.services.market_series import MarketSeriesService
 from equity_strategist.services.volatility_analysis import (
@@ -38,8 +41,17 @@ def build_market_series_service() -> MarketSeriesService:
 
 def build_volatility_analysis_service() -> VolatilityAnalysisService:
     """Build the volatility analysis service."""
-    market_series_service = build_market_series_service()
+    market_dataset_service = build_market_dataset_service()
 
     return VolatilityAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
+
+
+def build_market_dataset_service() -> MarketDatasetService:
+    """Build the market dataset service."""
+    market_series_service = build_market_series_service()
+
+    return MarketDatasetService(
         market_series_service=market_series_service,
     )

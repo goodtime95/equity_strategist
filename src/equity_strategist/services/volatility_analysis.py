@@ -9,7 +9,9 @@ from equity_strategist.domain.analysis_results import (
     VolatilityComparisonResult,
     VolatilityItem,
 )
-from equity_strategist.services.market_series import MarketSeriesService
+from equity_strategist.services.market_dataset import (
+    MarketDatasetService,
+)
 
 
 class VolatilityAnalysisService:
@@ -17,9 +19,9 @@ class VolatilityAnalysisService:
 
     def __init__(
         self,
-        market_series_service: MarketSeriesService,
+        market_dataset_service: MarketDatasetService,
     ) -> None:
-        self.market_series_service = market_series_service
+        self.market_dataset_service = market_dataset_service
 
     def compare(
         self,
@@ -33,15 +35,15 @@ class VolatilityAnalysisService:
         if len(asset_queries) < 2:
             raise ValueError("at least two assets are required for comparison")
 
+        dataset = self.market_dataset_service.build_price_dataset(
+            asset_queries=asset_queries,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
         items: list[VolatilityItem] = []
 
-        for asset_query in asset_queries:
-            price_series = self.market_series_service.get_price_series(
-                asset_query=asset_query,
-                start_date=start_date,
-                end_date=end_date,
-            )
-
+        for price_series in dataset.series_by_symbol.values():
             return_series = compute_returns(
                 price_series=price_series,
                 method=return_method,
