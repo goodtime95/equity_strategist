@@ -9,6 +9,9 @@ from equity_strategist.domain.analysis_plan import (
 from equity_strategist.services.market_queries import (
     MarketQueryService,
 )
+from equity_strategist.services.performance_analysis import (
+    PerformanceAnalysisService,
+)
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
@@ -20,9 +23,11 @@ class EquityExecutor:
     def __init__(
         self,
         volatility_analysis_service: VolatilityAnalysisService,
+        performance_analysis_service: PerformanceAnalysisService,
         market_query_service: MarketQueryService,
     ) -> None:
         self.volatility_analysis_service = volatility_analysis_service
+        self.performance_analysis_service = performance_analysis_service
         self.market_query_service = market_query_service
 
     def execute(
@@ -80,6 +85,19 @@ class EquityExecutor:
             return self.market_query_service.get_price_on_date(
                 asset_query=request.assets[0],
                 target_date=request.target_date,
+            )
+
+        if capability == Capability.COMPARE_PERFORMANCE:
+            if request.start_date is None:
+                raise ValueError("COMPARE_PERFORMANCE requires start_date")
+
+            if request.end_date is None:
+                raise ValueError("COMPARE_PERFORMANCE requires end_date")
+
+            return self.performance_analysis_service.compare(
+                asset_queries=list(request.assets),
+                start_date=request.start_date,
+                end_date=request.end_date,
             )
 
         raise ValueError(f"unsupported capability: {capability}")

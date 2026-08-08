@@ -4,10 +4,7 @@ from equity_strategist.app import build_equity_strategist
 def main() -> None:
     strategist = build_equity_strategist()
 
-    question = (
-        "Compare la volatilité de LVMH et Hermès "
-        "sur les 2 dernières années"
-    )
+    question = "Compare la volatilité de LVMH et Hermès sur les 2 dernières années"
 
     print("=" * 60)
     print("QUESTION")

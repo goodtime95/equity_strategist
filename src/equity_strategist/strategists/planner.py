@@ -33,4 +33,12 @@ class EquityPlanner:
                 steps=(PlanStep(capability=Capability.PRICE_ON_DATE),),
             )
 
+        if request.objective == AnalysisObjective.COMPARE and request.metrics == (
+            AnalysisMetric.PERFORMANCE,
+        ):
+            return AnalysisPlan(
+                request=request,
+                steps=(PlanStep(capability=Capability.COMPARE_PERFORMANCE),),
+            )
+
         raise ValueError("unsupported analysis request")

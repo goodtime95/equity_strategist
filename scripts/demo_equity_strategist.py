@@ -6,9 +6,8 @@ def main():
     strategist = build_equity_strategist()
 
     answer = strategist.answer(
-    "Compare la volatilité de LVMH et Hermès "
-    "sur les 2 dernières années"
-)
+        "Compare la volatilité de LVMH et Hermès sur les 2 dernières années"
+    )
 
     print(answer)
 

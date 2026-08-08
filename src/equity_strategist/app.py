@@ -7,6 +7,9 @@ from equity_strategist.services.market_dataset import (
 )
 from equity_strategist.services.market_queries import MarketQueryService
 from equity_strategist.services.market_series import MarketSeriesService
+from equity_strategist.services.performance_analysis import (
+    PerformanceAnalysisService,
+)
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
@@ -71,6 +74,7 @@ def build_equity_strategist() -> EquityStrategist:
 
     executor = EquityExecutor(
         volatility_analysis_service=(build_volatility_analysis_service()),
+        performance_analysis_service=(build_performance_analysis_service()),
         market_query_service=build_market_query_service(),
     )
 
@@ -78,4 +82,12 @@ def build_equity_strategist() -> EquityStrategist:
         planner=planner,
         executor=executor,
         understanding=RuleBasedUnderstanding(),
+    )
+
+
+def build_performance_analysis_service() -> PerformanceAnalysisService:
+    market_dataset_service = build_market_dataset_service()
+
+    return PerformanceAnalysisService(
+        market_dataset_service=market_dataset_service,
     )

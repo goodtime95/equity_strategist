@@ -5,6 +5,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
 from equity_strategist.domain.analysis_results import (
+    PerformanceComparisonResult,
     VolatilityComparisonResult,
 )
 from equity_strategist.domain.results import PriceOnDateResult
@@ -72,6 +73,9 @@ class EquityStrategist:
         if isinstance(result, PriceOnDateResult):
             return self._interpret_price(result)
 
+        if isinstance(result, PerformanceComparisonResult):
+            return self._interpret_performance(result)
+
         raise ValueError(f"unsupported execution result: {type(result).__name__}")
 
     @staticmethod
@@ -114,3 +118,24 @@ class EquityStrategist:
             )
 
         return answer
+
+    @staticmethod
+    def _interpret_performance(
+        result: PerformanceComparisonResult,
+    ) -> str:
+        lines = [
+            (
+                "Historical performance comparison "
+                f"from {result.start_date} to {result.end_date}:"
+            )
+        ]
+
+        for rank, item in enumerate(
+            result.items,
+            start=1,
+        ):
+            name = item.name or item.symbol
+
+            lines.append(f"{rank}. {name} ({item.symbol}): {item.performance:.2%}")
+
+        return "\n".join(lines)
