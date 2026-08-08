@@ -4,7 +4,8 @@ from equity_strategist.domain.analysis_plan import (
     PlanStep,
 )
 from equity_strategist.domain.analysis_request import (
-    AnalysisIntent,
+    AnalysisMetric,
+    AnalysisObjective,
     AnalysisRequest,
 )
 
@@ -16,16 +17,20 @@ class EquityPlanner:
         self,
         request: AnalysisRequest,
     ) -> AnalysisPlan:
-        if request.intent == AnalysisIntent.COMPARE_VOLATILITY:
+        if request.objective == AnalysisObjective.COMPARE and request.metrics == (
+            AnalysisMetric.VOLATILITY,
+        ):
             return AnalysisPlan(
                 request=request,
                 steps=(PlanStep(capability=Capability.COMPARE_VOLATILITY),),
             )
 
-        if request.intent == AnalysisIntent.PRICE_ON_DATE:
+        if request.objective == AnalysisObjective.GET and request.metrics == (
+            AnalysisMetric.PRICE,
+        ):
             return AnalysisPlan(
                 request=request,
                 steps=(PlanStep(capability=Capability.PRICE_ON_DATE),),
             )
 
-        raise ValueError(f"unsupported analysis intent: {request.intent}")
+        raise ValueError("unsupported analysis request")

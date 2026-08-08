@@ -3,32 +3,46 @@ from datetime import date
 import pytest
 
 from equity_strategist.domain.analysis_request import (
-    AnalysisIntent,
+    AnalysisMetric,
+    AnalysisObjective,
     AnalysisRequest,
 )
 
 
 def test_analysis_request() -> None:
     request = AnalysisRequest(
-        intent=AnalysisIntent.COMPARE_VOLATILITY,
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.VOLATILITY,),
         assets=("LVMH", "Hermès"),
         start_date=date(2024, 1, 1),
         end_date=date(2025, 12, 31),
     )
 
-    assert request.intent == AnalysisIntent.COMPARE_VOLATILITY
+    assert request.objective == AnalysisObjective.COMPARE
+    assert request.metrics == (AnalysisMetric.VOLATILITY,)
     assert request.assets == ("LVMH", "Hermès")
 
 
-def test_analysis_request_requires_asset() -> None:
+def test_analysis_request_requires_asset_or_universe() -> None:
     with pytest.raises(
         ValueError,
-        match="at least one asset",
+        match="asset or universe",
     ):
         AnalysisRequest(
-            intent=AnalysisIntent.COMPARE_VOLATILITY,
-            assets=(),
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.VOLATILITY,),
         )
+
+
+def test_analysis_request_accepts_universe_without_assets() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="CAC 40",
+    )
+
+    assert request.assets == ()
+    assert request.universe == "CAC 40"
 
 
 def test_analysis_request_rejects_invalid_period() -> None:
@@ -37,7 +51,8 @@ def test_analysis_request_rejects_invalid_period() -> None:
         match="start_date",
     ):
         AnalysisRequest(
-            intent=AnalysisIntent.COMPARE_VOLATILITY,
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.VOLATILITY,),
             assets=("LVMH", "Hermès"),
             start_date=date(2025, 1, 1),
             end_date=date(2024, 1, 1),

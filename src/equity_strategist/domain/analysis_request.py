@@ -3,26 +3,49 @@ from datetime import date
 from enum import StrEnum
 
 
-class AnalysisIntent(StrEnum):
-    """Supported user analysis intents."""
+class AnalysisObjective(StrEnum):
+    """High-level objective of the user request."""
 
-    COMPARE_VOLATILITY = "compare_volatility"
-    PRICE_ON_DATE = "price_on_date"
+    GET = "get"
+    COMPARE = "compare"
+    RANK = "rank"
+    ANALYZE = "analyze"
+
+
+class AnalysisMetric(StrEnum):
+    """Financial metrics that may be requested."""
+
+    PRICE = "price"
+    PERFORMANCE = "performance"
+    VOLATILITY = "volatility"
+    CORRELATION = "correlation"
+    DRAWDOWN = "drawdown"
 
 
 @dataclass(frozen=True, slots=True)
 class AnalysisRequest:
     """Structured representation of a user analysis request."""
 
-    intent: AnalysisIntent
-    assets: tuple[str, ...]
+    objective: AnalysisObjective
+    metrics: tuple[AnalysisMetric, ...] = ()
+
+    assets: tuple[str, ...] = ()
+    universe: str | None = None
+
     start_date: date | None = None
     end_date: date | None = None
     target_date: date | None = None
+    market_period: str | None = None
+
+    benchmark: str | None = None
+
+    constraints: tuple[str, ...] = ()
+    user_context: str | None = None
+    unresolved: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.assets:
-            raise ValueError("at least one asset is required")
+        if not self.assets and self.universe is None:
+            raise ValueError("at least one asset or universe is required")
 
         if (
             self.start_date is not None

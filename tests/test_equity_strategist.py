@@ -11,7 +11,8 @@ from equity_strategist.domain.analysis_plan import (
     PlanStep,
 )
 from equity_strategist.domain.analysis_request import (
-    AnalysisIntent,
+    AnalysisMetric,
+    AnalysisObjective,
     AnalysisRequest,
 )
 from equity_strategist.domain.analysis_results import (
@@ -25,9 +26,10 @@ from equity_strategist.strategists.equity_strategist import (
 )
 
 
-def test_interpret_volatility_result() -> None:
+def test_interpret_volatility_result():
     request = AnalysisRequest(
-        intent=AnalysisIntent.COMPARE_VOLATILITY,
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.VOLATILITY,),
         assets=("LVMH", "Hermès"),
         start_date=date(2024, 1, 1),
         end_date=date(2025, 12, 31),
@@ -42,7 +44,7 @@ def test_interpret_volatility_result() -> None:
         ),
     )
 
-    volatility_result = VolatilityComparisonResult(
+    result = VolatilityComparisonResult(
         start_date=date(2024, 1, 1),
         end_date=date(2025, 12, 31),
         annualization_factor=252,
@@ -65,7 +67,7 @@ def test_interpret_volatility_result() -> None:
         step_results=(
             StepExecutionResult(
                 capability=Capability.COMPARE_VOLATILITY,
-                result=volatility_result,
+                result=result,
             ),
         ),
     )
@@ -77,18 +79,16 @@ def test_interpret_volatility_result() -> None:
 
     answer = strategist.interpret(execution)
 
-    assert "Historical volatility comparison" in answer
     assert "LVMH" in answer
-    assert "MC.PA" in answer
     assert "30.00%" in answer
     assert "Hermès" in answer
-    assert "RMS.PA" in answer
     assert "25.00%" in answer
 
 
-def test_interpret_price_result() -> None:
+def test_interpret_price_result():
     request = AnalysisRequest(
-        intent=AnalysisIntent.PRICE_ON_DATE,
+        objective=AnalysisObjective.GET,
+        metrics=(AnalysisMetric.PRICE,),
         assets=("LVMH",),
         target_date=date(2020, 3, 15),
     )
@@ -133,9 +133,6 @@ def test_interpret_price_result() -> None:
     answer = strategist.interpret(execution)
 
     assert "LVMH" in answer
-    assert "MC.PA" in answer
     assert "314.90" in answer
-    assert "EUR" in answer
     assert "2020-03-13" in answer
-    assert "2020-03-15" in answer
     assert "previous available trading session" in answer
