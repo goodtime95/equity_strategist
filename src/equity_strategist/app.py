@@ -16,6 +16,9 @@ from equity_strategist.services.market_series import MarketSeriesService
 from equity_strategist.services.performance_analysis import (
     PerformanceAnalysisService,
 )
+from equity_strategist.services.ranking_analysis import (
+    RankingAnalysisService,
+)
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
@@ -83,6 +86,7 @@ def build_equity_strategist() -> EquityStrategist:
         performance_analysis_service=(build_performance_analysis_service()),
         correlation_analysis_service=(build_correlation_analysis_service()),
         drawdown_analysis_service=(build_drawdown_analysis_service()),
+        ranking_analysis_service=(build_ranking_analysis_service()),
         market_query_service=build_market_query_service(),
     )
 
@@ -109,5 +113,11 @@ def build_correlation_analysis_service() -> CorrelationAnalysisService:
 
 def build_drawdown_analysis_service() -> DrawdownAnalysisService:
     return DrawdownAnalysisService(
+        market_dataset_service=build_market_dataset_service(),
+    )
+
+
+def build_ranking_analysis_service() -> RankingAnalysisService:
+    return RankingAnalysisService(
         market_dataset_service=build_market_dataset_service(),
     )

@@ -8,6 +8,7 @@ from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
     DrawdownComparisonResult,
     PerformanceComparisonResult,
+    RankingResult,
     VolatilityComparisonResult,
 )
 from equity_strategist.domain.results import PriceOnDateResult
@@ -83,6 +84,9 @@ class EquityStrategist:
 
         if isinstance(result, DrawdownComparisonResult):
             return self._interpret_drawdown(result)
+
+        if isinstance(result, RankingResult):
+            return self._interpret_ranking(result)
 
         raise ValueError(f"unsupported execution result: {type(result).__name__}")
 
@@ -201,5 +205,23 @@ class EquityStrategist:
             line += ")"
 
             lines.append(line)
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _interpret_ranking(
+        result: RankingResult,
+    ) -> str:
+        lines = [
+            (
+                f"Ranking by {result.metric} "
+                f"from {result.start_date} to {result.end_date}:"
+            )
+        ]
+
+        for item in result.items:
+            name = item.name or item.symbol
+
+            lines.append(f"{item.rank}. {name} ({item.symbol}): {item.value:.2%}")
 
         return "\n".join(lines)

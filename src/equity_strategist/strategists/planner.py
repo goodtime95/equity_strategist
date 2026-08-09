@@ -57,4 +57,12 @@ class EquityPlanner:
                 steps=(PlanStep(capability=Capability.COMPARE_DRAWDOWN),),
             )
 
+        if request.objective == AnalysisObjective.RANK and request.metrics == (
+            AnalysisMetric.PERFORMANCE,
+        ):
+            return AnalysisPlan(
+                request=request,
+                steps=(PlanStep(capability=Capability.RANK_PERFORMANCE),),
+            )
+
         raise ValueError("unsupported analysis request")

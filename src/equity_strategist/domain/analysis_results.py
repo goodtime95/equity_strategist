@@ -78,3 +78,23 @@ class DrawdownComparisonResult:
     start_date: date
     end_date: date
     items: tuple[DrawdownItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RankingItem:
+    """Ranked metric result for one asset."""
+
+    rank: int
+    symbol: str
+    name: str | None
+    value: float
+
+
+@dataclass(frozen=True, slots=True)
+class RankingResult:
+    """Structured ranking across several assets."""
+
+    metric: str
+    start_date: date
+    end_date: date
+    items: tuple[RankingItem, ...]

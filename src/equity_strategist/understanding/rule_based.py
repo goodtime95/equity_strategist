@@ -84,6 +84,19 @@ class RuleBasedUnderstanding:
         if any(word in lower for word in analyze_words):
             return AnalysisObjective.ANALYZE
 
+        rank_words = (
+            "classe",
+            "classement",
+            "rank",
+            "ranking",
+            "top",
+            "meilleures",
+            "meilleurs",
+        )
+
+        if any(word in lower for word in rank_words):
+            return AnalysisObjective.RANK
+
         raise UnderstandingError("unable to identify analysis objective")
 
     @staticmethod

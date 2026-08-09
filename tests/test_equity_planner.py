@@ -91,3 +91,20 @@ def test_plan_drawdown_comparison() -> None:
 
     assert len(plan.steps) == 1
     assert plan.steps[0].capability == Capability.COMPARE_DRAWDOWN
+
+
+def test_plan_performance_ranking() -> None:
+    planner = EquityPlanner()
+
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès", "ASML"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = planner.plan(request)
+
+    assert len(plan.steps) == 1
+    assert plan.steps[0].capability == Capability.RANK_PERFORMANCE

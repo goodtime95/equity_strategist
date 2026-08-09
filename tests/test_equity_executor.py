@@ -21,6 +21,8 @@ from equity_strategist.domain.analysis_results import (
     DrawdownItem,
     PerformanceComparisonResult,
     PerformanceItem,
+    RankingItem,
+    RankingResult,
     VolatilityComparisonResult,
     VolatilityItem,
 )
@@ -158,12 +160,47 @@ class FakeDrawdownAnalysisService:
         )
 
 
+class FakeRankingAnalysisService:
+    def rank_performance(
+        self,
+        asset_queries,
+        start_date,
+        end_date,
+    ):
+        return RankingResult(
+            metric="performance",
+            start_date=start_date,
+            end_date=end_date,
+            items=(
+                RankingItem(
+                    rank=1,
+                    symbol="ASML.AS",
+                    name="ASML",
+                    value=0.40,
+                ),
+                RankingItem(
+                    rank=2,
+                    symbol="MC.PA",
+                    name="LVMH",
+                    value=0.20,
+                ),
+                RankingItem(
+                    rank=3,
+                    symbol="RMS.PA",
+                    name="Hermès",
+                    value=0.10,
+                ),
+            ),
+        )
+
+
 def build_executor():
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
         performance_analysis_service=FakePerformanceAnalysisService(),
         correlation_analysis_service=FakeCorrelationAnalysisService(),
         drawdown_analysis_service=FakeDrawdownAnalysisService(),
+        ranking_analysis_service=FakeRankingAnalysisService(),
         market_query_service=FakeMarketQueryService(),
     )
 
@@ -317,3 +354,33 @@ def test_execute_drawdown_plan():
     )
     assert len(drawdown_result.items) == 2
     assert drawdown_result.items[0].maximum_drawdown == -0.35
+
+
+def test_execute_performance_ranking_plan():
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès", "ASML"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = AnalysisPlan(
+        request=request,
+        steps=(
+            PlanStep(
+                capability=Capability.RANK_PERFORMANCE,
+            ),
+        ),
+    )
+
+    result = build_executor().execute(plan)
+
+    ranking_result = result.step_results[0].result
+
+    assert isinstance(
+        ranking_result,
+        RankingResult,
+    )
+    assert ranking_result.items[0].rank == 1
+    assert ranking_result.items[0].symbol == "ASML.AS"

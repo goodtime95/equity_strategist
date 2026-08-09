@@ -119,3 +119,22 @@ def test_understand_drawdown_comparison() -> None:
     )
     assert request.start_date == date(2024, 8, 9)
     assert request.end_date == date(2026, 8, 9)
+
+
+def test_understand_performance_ranking() -> None:
+    understanding = RuleBasedUnderstanding()
+
+    request = understanding.understand(
+        "Classe LVMH, Hermès et ASML par performance sur les 2 dernières années",
+        today=date(2026, 8, 9),
+    )
+
+    assert request.objective == AnalysisObjective.RANK
+    assert request.metrics == (AnalysisMetric.PERFORMANCE,)
+    assert request.assets == (
+        "LVMH",
+        "Hermès",
+        "ASML",
+    )
+    assert request.start_date == date(2024, 8, 9)
+    assert request.end_date == date(2026, 8, 9)

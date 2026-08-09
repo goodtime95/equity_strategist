@@ -12,6 +12,7 @@ class Capability(StrEnum):
     COMPARE_PERFORMANCE = "compare_performance"
     ANALYZE_CORRELATION = "analyze_correlation"
     COMPARE_DRAWDOWN = "compare_drawdown"
+    RANK_PERFORMANCE = "rank_performance"
 
 
 @dataclass(frozen=True, slots=True)
