@@ -17,6 +17,8 @@ from equity_strategist.domain.analysis_request import (
 from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
     CorrelationItem,
+    DrawdownComparisonResult,
+    DrawdownItem,
     PerformanceComparisonResult,
     PerformanceItem,
     VolatilityComparisonResult,
@@ -125,11 +127,43 @@ class FakeCorrelationAnalysisService:
         )
 
 
+class FakeDrawdownAnalysisService:
+    def compare(
+        self,
+        asset_queries,
+        start_date,
+        end_date,
+    ):
+        return DrawdownComparisonResult(
+            start_date=start_date,
+            end_date=end_date,
+            items=(
+                DrawdownItem(
+                    symbol="MC.PA",
+                    name="LVMH",
+                    maximum_drawdown=-0.35,
+                    peak_date=date(2024, 3, 1),
+                    trough_date=date(2024, 8, 1),
+                    recovery_date=None,
+                ),
+                DrawdownItem(
+                    symbol="RMS.PA",
+                    name="Hermès",
+                    maximum_drawdown=-0.20,
+                    peak_date=date(2024, 2, 1),
+                    trough_date=date(2024, 6, 1),
+                    recovery_date=date(2025, 1, 15),
+                ),
+            ),
+        )
+
+
 def build_executor():
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
         performance_analysis_service=FakePerformanceAnalysisService(),
         correlation_analysis_service=FakeCorrelationAnalysisService(),
+        drawdown_analysis_service=FakeDrawdownAnalysisService(),
         market_query_service=FakeMarketQueryService(),
     )
 
@@ -253,3 +287,33 @@ def test_execute_correlation_plan():
     )
     assert len(correlation_result.items) == 1
     assert correlation_result.items[0].correlation == 0.72
+
+
+def test_execute_drawdown_plan():
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.DRAWDOWN,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = AnalysisPlan(
+        request=request,
+        steps=(
+            PlanStep(
+                capability=Capability.COMPARE_DRAWDOWN,
+            ),
+        ),
+    )
+
+    result = build_executor().execute(plan)
+
+    drawdown_result = result.step_results[0].result
+
+    assert isinstance(
+        drawdown_result,
+        DrawdownComparisonResult,
+    )
+    assert len(drawdown_result.items) == 2
+    assert drawdown_result.items[0].maximum_drawdown == -0.35

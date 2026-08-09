@@ -5,6 +5,9 @@ from equity_strategist.data_providers.yahoo import YahooFinanceProvider
 from equity_strategist.services.correlation_analysis import (
     CorrelationAnalysisService,
 )
+from equity_strategist.services.drawdown_analysis import (
+    DrawdownAnalysisService,
+)
 from equity_strategist.services.market_dataset import (
     MarketDatasetService,
 )
@@ -79,6 +82,7 @@ def build_equity_strategist() -> EquityStrategist:
         volatility_analysis_service=(build_volatility_analysis_service()),
         performance_analysis_service=(build_performance_analysis_service()),
         correlation_analysis_service=(build_correlation_analysis_service()),
+        drawdown_analysis_service=(build_drawdown_analysis_service()),
         market_query_service=build_market_query_service(),
     )
 
@@ -99,5 +103,11 @@ def build_performance_analysis_service() -> PerformanceAnalysisService:
 
 def build_correlation_analysis_service() -> CorrelationAnalysisService:
     return CorrelationAnalysisService(
+        market_dataset_service=build_market_dataset_service(),
+    )
+
+
+def build_drawdown_analysis_service() -> DrawdownAnalysisService:
+    return DrawdownAnalysisService(
         market_dataset_service=build_market_dataset_service(),
     )

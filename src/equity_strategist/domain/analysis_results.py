@@ -57,3 +57,24 @@ class CorrelationAnalysisResult:
     start_date: date
     end_date: date
     items: tuple[CorrelationItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DrawdownItem:
+    """Maximum drawdown result for one asset."""
+
+    symbol: str
+    name: str | None
+    maximum_drawdown: float
+    peak_date: date
+    trough_date: date
+    recovery_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class DrawdownComparisonResult:
+    """Structured multi-asset drawdown comparison."""
+
+    start_date: date
+    end_date: date
+    items: tuple[DrawdownItem, ...]

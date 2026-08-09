@@ -74,3 +74,20 @@ def test_plan_correlation_analysis() -> None:
 
     assert len(plan.steps) == 1
     assert plan.steps[0].capability == Capability.ANALYZE_CORRELATION
+
+
+def test_plan_drawdown_comparison() -> None:
+    planner = EquityPlanner()
+
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.DRAWDOWN,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = planner.plan(request)
+
+    assert len(plan.steps) == 1
+    assert plan.steps[0].capability == Capability.COMPARE_DRAWDOWN

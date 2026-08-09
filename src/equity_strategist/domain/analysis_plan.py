@@ -11,6 +11,7 @@ class Capability(StrEnum):
     PRICE_ON_DATE = "price_on_date"
     COMPARE_PERFORMANCE = "compare_performance"
     ANALYZE_CORRELATION = "analyze_correlation"
+    COMPARE_DRAWDOWN = "compare_drawdown"
 
 
 @dataclass(frozen=True, slots=True)

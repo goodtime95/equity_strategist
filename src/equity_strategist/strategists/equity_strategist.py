@@ -6,6 +6,7 @@ from equity_strategist.domain.analysis_request import (
 )
 from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
+    DrawdownComparisonResult,
     PerformanceComparisonResult,
     VolatilityComparisonResult,
 )
@@ -79,6 +80,9 @@ class EquityStrategist:
 
         if isinstance(result, CorrelationAnalysisResult):
             return self._interpret_correlation(result)
+
+        if isinstance(result, DrawdownComparisonResult):
+            return self._interpret_drawdown(result)
 
         raise ValueError(f"unsupported execution result: {type(result).__name__}")
 
@@ -164,5 +168,38 @@ class EquityStrategist:
                 f"{second_name} ({item.second_symbol}): "
                 f"{item.correlation:.2f}"
             )
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _interpret_drawdown(
+        result: DrawdownComparisonResult,
+    ) -> str:
+        lines = [
+            (
+                "Maximum drawdown comparison "
+                f"from {result.start_date} to {result.end_date}:"
+            )
+        ]
+
+        for rank, item in enumerate(
+            result.items,
+            start=1,
+        ):
+            name = item.name or item.symbol
+
+            line = (
+                f"{rank}. {name} ({item.symbol}): "
+                f"{item.maximum_drawdown:.2%} "
+                f"(peak {item.peak_date}, "
+                f"trough {item.trough_date}"
+            )
+
+            if item.recovery_date is not None:
+                line += f", recovery {item.recovery_date}"
+
+            line += ")"
+
+            lines.append(line)
 
         return "\n".join(lines)

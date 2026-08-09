@@ -49,4 +49,12 @@ class EquityPlanner:
                 steps=(PlanStep(capability=Capability.ANALYZE_CORRELATION),),
             )
 
+        if request.objective == AnalysisObjective.COMPARE and request.metrics == (
+            AnalysisMetric.DRAWDOWN,
+        ):
+            return AnalysisPlan(
+                request=request,
+                steps=(PlanStep(capability=Capability.COMPARE_DRAWDOWN),),
+            )
+
         raise ValueError("unsupported analysis request")

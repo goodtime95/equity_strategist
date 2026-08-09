@@ -5,8 +5,7 @@ def main() -> None:
     strategist = build_equity_strategist()
 
     question = (
-        "Analyse les corrélations entre LVMH, Hermès "
-        "et ASML sur les 2 dernières années"
+        "Analyse les corrélations entre LVMH, Hermès et ASML sur les 2 dernières années"
     )
 
     print("=" * 60)

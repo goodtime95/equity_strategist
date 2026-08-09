@@ -100,3 +100,22 @@ def test_understand_correlation_analysis() -> None:
     )
     assert request.start_date == date(2024, 8, 8)
     assert request.end_date == date(2026, 8, 8)
+
+
+def test_understand_drawdown_comparison() -> None:
+    understanding = RuleBasedUnderstanding()
+
+    request = understanding.understand(
+        "Compare le drawdown de LVMH, Hermès et ASML sur les 2 dernières années",
+        today=date(2026, 8, 9),
+    )
+
+    assert request.objective == AnalysisObjective.COMPARE
+    assert request.metrics == (AnalysisMetric.DRAWDOWN,)
+    assert request.assets == (
+        "LVMH",
+        "Hermès",
+        "ASML",
+    )
+    assert request.start_date == date(2024, 8, 9)
+    assert request.end_date == date(2026, 8, 9)
