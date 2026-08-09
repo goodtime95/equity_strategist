@@ -6,6 +6,9 @@ from equity_strategist.domain.analysis_plan import (
     AnalysisPlan,
     Capability,
 )
+from equity_strategist.services.correlation_analysis import (
+    CorrelationAnalysisService,
+)
 from equity_strategist.services.market_queries import (
     MarketQueryService,
 )
@@ -24,10 +27,12 @@ class EquityExecutor:
         self,
         volatility_analysis_service: VolatilityAnalysisService,
         performance_analysis_service: PerformanceAnalysisService,
+        correlation_analysis_service: CorrelationAnalysisService,
         market_query_service: MarketQueryService,
     ) -> None:
         self.volatility_analysis_service = volatility_analysis_service
         self.performance_analysis_service = performance_analysis_service
+        self.correlation_analysis_service = correlation_analysis_service
         self.market_query_service = market_query_service
 
     def execute(
@@ -95,6 +100,19 @@ class EquityExecutor:
                 raise ValueError("COMPARE_PERFORMANCE requires end_date")
 
             return self.performance_analysis_service.compare(
+                asset_queries=list(request.assets),
+                start_date=request.start_date,
+                end_date=request.end_date,
+            )
+
+        if capability == Capability.ANALYZE_CORRELATION:
+            if request.start_date is None:
+                raise ValueError("ANALYZE_CORRELATION requires start_date")
+
+            if request.end_date is None:
+                raise ValueError("ANALYZE_CORRELATION requires end_date")
+
+            return self.correlation_analysis_service.analyze(
                 asset_queries=list(request.assets),
                 start_date=request.start_date,
                 end_date=request.end_date,

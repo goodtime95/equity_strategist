@@ -37,3 +37,23 @@ class PerformanceComparisonResult:
     start_date: date
     end_date: date
     items: tuple[PerformanceItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CorrelationItem:
+    """Correlation result for one pair of assets."""
+
+    first_symbol: str
+    first_name: str | None
+    second_symbol: str
+    second_name: str | None
+    correlation: float
+
+
+@dataclass(frozen=True, slots=True)
+class CorrelationAnalysisResult:
+    """Structured multi-asset correlation analysis."""
+
+    start_date: date
+    end_date: date
+    items: tuple[CorrelationItem, ...]

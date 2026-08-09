@@ -5,6 +5,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
 from equity_strategist.domain.analysis_results import (
+    CorrelationAnalysisResult,
     PerformanceComparisonResult,
     VolatilityComparisonResult,
 )
@@ -76,6 +77,9 @@ class EquityStrategist:
         if isinstance(result, PerformanceComparisonResult):
             return self._interpret_performance(result)
 
+        if isinstance(result, CorrelationAnalysisResult):
+            return self._interpret_correlation(result)
+
         raise ValueError(f"unsupported execution result: {type(result).__name__}")
 
     @staticmethod
@@ -137,5 +141,28 @@ class EquityStrategist:
             name = item.name or item.symbol
 
             lines.append(f"{rank}. {name} ({item.symbol}): {item.performance:.2%}")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _interpret_correlation(
+        result: CorrelationAnalysisResult,
+    ) -> str:
+        lines = [
+            (
+                "Historical correlation analysis "
+                f"from {result.start_date} to {result.end_date}:"
+            )
+        ]
+
+        for item in result.items:
+            first_name = item.first_name or item.first_symbol
+            second_name = item.second_name or item.second_symbol
+
+            lines.append(
+                f"{first_name} ({item.first_symbol}) / "
+                f"{second_name} ({item.second_symbol}): "
+                f"{item.correlation:.2f}"
+            )
 
         return "\n".join(lines)

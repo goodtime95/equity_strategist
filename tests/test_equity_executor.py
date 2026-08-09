@@ -15,6 +15,8 @@ from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
 from equity_strategist.domain.analysis_results import (
+    CorrelationAnalysisResult,
+    CorrelationItem,
     PerformanceComparisonResult,
     PerformanceItem,
     VolatilityComparisonResult,
@@ -101,10 +103,33 @@ class FakePerformanceAnalysisService:
         )
 
 
+class FakeCorrelationAnalysisService:
+    def analyze(
+        self,
+        asset_queries,
+        start_date,
+        end_date,
+    ):
+        return CorrelationAnalysisResult(
+            start_date=start_date,
+            end_date=end_date,
+            items=(
+                CorrelationItem(
+                    first_symbol="MC.PA",
+                    first_name="LVMH",
+                    second_symbol="RMS.PA",
+                    second_name="Hermès",
+                    correlation=0.72,
+                ),
+            ),
+        )
+
+
 def build_executor():
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
         performance_analysis_service=FakePerformanceAnalysisService(),
+        correlation_analysis_service=FakeCorrelationAnalysisService(),
         market_query_service=FakeMarketQueryService(),
     )
 
@@ -198,3 +223,33 @@ def test_execute_performance_plan():
     )
     assert len(performance_result.items) == 2
     assert performance_result.items[0].symbol == "MC.PA"
+
+
+def test_execute_correlation_plan():
+    request = AnalysisRequest(
+        objective=AnalysisObjective.ANALYZE,
+        metrics=(AnalysisMetric.CORRELATION,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = AnalysisPlan(
+        request=request,
+        steps=(
+            PlanStep(
+                capability=Capability.ANALYZE_CORRELATION,
+            ),
+        ),
+    )
+
+    result = build_executor().execute(plan)
+
+    correlation_result = result.step_results[0].result
+
+    assert isinstance(
+        correlation_result,
+        CorrelationAnalysisResult,
+    )
+    assert len(correlation_result.items) == 1
+    assert correlation_result.items[0].correlation == 0.72

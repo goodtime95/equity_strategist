@@ -10,6 +10,7 @@ class Capability(StrEnum):
     COMPARE_VOLATILITY = "compare_volatility"
     PRICE_ON_DATE = "price_on_date"
     COMPARE_PERFORMANCE = "compare_performance"
+    ANALYZE_CORRELATION = "analyze_correlation"
 
 
 @dataclass(frozen=True, slots=True)

@@ -76,6 +76,14 @@ class RuleBasedUnderstanding:
         if any(word in lower for word in get_words):
             return AnalysisObjective.GET
 
+        analyze_words = (
+            "analyse",
+            "analyze",
+        )
+
+        if any(word in lower for word in analyze_words):
+            return AnalysisObjective.ANALYZE
+
         raise UnderstandingError("unable to identify analysis objective")
 
     @staticmethod

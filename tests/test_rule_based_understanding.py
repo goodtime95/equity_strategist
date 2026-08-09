@@ -80,3 +80,23 @@ def test_understand_unknown_asset_fails() -> None:
             "Compare la volatilité de Société Générale et BNP",
             today=date(2026, 8, 8),
         )
+
+
+def test_understand_correlation_analysis() -> None:
+    understanding = RuleBasedUnderstanding()
+
+    request = understanding.understand(
+        "Analyse les corrélations entre LVMH, Hermès "
+        "et ASML sur les 2 dernières années",
+        today=date(2026, 8, 8),
+    )
+
+    assert request.objective == AnalysisObjective.ANALYZE
+    assert request.metrics == (AnalysisMetric.CORRELATION,)
+    assert request.assets == (
+        "LVMH",
+        "Hermès",
+        "ASML",
+    )
+    assert request.start_date == date(2024, 8, 8)
+    assert request.end_date == date(2026, 8, 8)
