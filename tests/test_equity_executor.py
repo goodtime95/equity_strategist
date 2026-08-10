@@ -28,7 +28,11 @@ from equity_strategist.domain.analysis_results import (
 )
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.results import PriceOnDateResult
+from equity_strategist.domain.universe import Universe
 from equity_strategist.strategists.executor import EquityExecutor
+from equity_strategist.universe_registry.registry import (
+    UniverseRegistry,
+)
 
 
 class FakeVolatilityAnalysisService:
@@ -195,6 +199,17 @@ class FakeRankingAnalysisService:
 
 
 def build_executor():
+    universe_registry = UniverseRegistry(
+        [
+            Universe(
+                name="Luxury Europe",
+                asset_queries=(
+                    "LVMH",
+                    "Hermès",
+                ),
+            )
+        ]
+    )
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
         performance_analysis_service=FakePerformanceAnalysisService(),
@@ -202,6 +217,7 @@ def build_executor():
         drawdown_analysis_service=FakeDrawdownAnalysisService(),
         ranking_analysis_service=FakeRankingAnalysisService(),
         market_query_service=FakeMarketQueryService(),
+        universe_registry=universe_registry,
     )
 
 
@@ -384,3 +400,31 @@ def test_execute_performance_ranking_plan():
     )
     assert ranking_result.items[0].rank == 1
     assert ranking_result.items[0].symbol == "ASML.AS"
+
+
+def test_execute_performance_ranking_from_universe():
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="Luxury Europe",
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = AnalysisPlan(
+        request=request,
+        steps=(
+            PlanStep(
+                capability=Capability.RANK_PERFORMANCE,
+            ),
+        ),
+    )
+
+    result = build_executor().execute(plan)
+
+    ranking_result = result.step_results[0].result
+
+    assert isinstance(
+        ranking_result,
+        RankingResult,
+    )

@@ -7,6 +7,10 @@ from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
 
+from equity_strategist.universe_registry.registry import (
+    UniverseRegistry,
+)
+
 
 class UnderstandingError(ValueError):
     """Raised when a user question cannot be parsed reliably."""
@@ -14,6 +18,12 @@ class UnderstandingError(ValueError):
 
 class RuleBasedUnderstanding:
     """Temporary deterministic natural-language understanding layer."""
+
+    def __init__(
+        self,
+        universe_registry: UniverseRegistry,
+    ) -> None:
+        self.universe_registry = universe_registry
 
     def understand(
         self,
@@ -29,7 +39,12 @@ class RuleBasedUnderstanding:
 
         objective = self._parse_objective(clean_question)
         metrics = self._parse_metrics(clean_question)
-        assets = self._parse_assets(clean_question)
+        universe = self._parse_universe(clean_question)
+        assets = (
+            ()
+            if universe is not None
+            else self._parse_assets(clean_question)
+        )
 
         start_date, end_date = self._parse_period(
             clean_question,
@@ -211,3 +226,21 @@ class RuleBasedUnderstanding:
         year, month, day = (int(value) for value in match.groups())
 
         return date(year, month, day)
+
+    def _parse_universe(
+        self,
+        question: str,
+    ) -> str | None:
+        lower = question.casefold()
+
+        for universe in self.universe_registry.universes:
+            terms = (
+                universe.name,
+                *universe.aliases,
+            )
+
+            for term in terms:
+                if term.casefold() in lower:
+                    return universe.name
+
+        return None

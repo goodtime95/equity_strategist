@@ -24,6 +24,9 @@ from equity_strategist.services.ranking_analysis import (
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
+from equity_strategist.universe_registry.registry import (
+    UniverseRegistry,
+)
 
 
 class EquityExecutor:
@@ -37,6 +40,7 @@ class EquityExecutor:
         drawdown_analysis_service: DrawdownAnalysisService,
         ranking_analysis_service: RankingAnalysisService,
         market_query_service: MarketQueryService,
+        universe_registry: UniverseRegistry,
     ) -> None:
         self.volatility_analysis_service = volatility_analysis_service
         self.performance_analysis_service = performance_analysis_service
@@ -44,6 +48,22 @@ class EquityExecutor:
         self.drawdown_analysis_service = drawdown_analysis_service
         self.ranking_analysis_service = ranking_analysis_service
         self.market_query_service = market_query_service
+        self.universe_registry = universe_registry
+
+    def _resolve_asset_queries(
+        self,
+        plan: AnalysisPlan,
+    ) -> list[str]:
+        request = plan.request
+
+        if request.assets:
+            return list(request.assets)
+
+        if request.universe is not None:
+            universe = self.universe_registry.resolve(request.universe)
+            return list(universe.asset_queries)
+
+        raise ValueError("analysis request requires assets or universe")
 
     def execute(
         self,
@@ -149,7 +169,7 @@ class EquityExecutor:
                 raise ValueError("RANK_PERFORMANCE requires end_date")
 
             return self.ranking_analysis_service.rank_performance(
-                asset_queries=list(request.assets),
+                asset_queries=self._resolve_asset_queries(plan),
                 start_date=request.start_date,
                 end_date=request.end_date,
             )
