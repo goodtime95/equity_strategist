@@ -6,14 +6,41 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
 )
+from equity_strategist.domain.universe import Universe
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
     UnderstandingError,
 )
+from equity_strategist.universe_registry.registry import (
+    UniverseRegistry,
+)
+
+
+# Helper commun à tous les tests
+def build_understanding() -> RuleBasedUnderstanding:
+    registry = UniverseRegistry(
+        [
+            Universe(
+                name="Luxury Europe",
+                asset_queries=(
+                    "LVMH",
+                    "Hermès",
+                ),
+                aliases=(
+                    "Luxury",
+                    "European Luxury",
+                ),
+            )
+        ]
+    )
+
+    return RuleBasedUnderstanding(
+        universe_registry=registry,
+    )
 
 
 def test_understand_volatility_comparison() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Compare la volatilité de LVMH et Hermès sur les 2 dernières années",
@@ -31,7 +58,7 @@ def test_understand_volatility_comparison() -> None:
 
 
 def test_understand_period_since_year() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Compare la volatilité de LVMH et ASML depuis 2022",
@@ -43,7 +70,7 @@ def test_understand_period_since_year() -> None:
 
 
 def test_understand_price_on_iso_date() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Quel était le prix de LVMH le 2020-03-15 ?",
@@ -57,7 +84,7 @@ def test_understand_price_on_iso_date() -> None:
 
 
 def test_understand_unknown_metric_fails() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     with pytest.raises(
         UnderstandingError,
@@ -70,7 +97,7 @@ def test_understand_unknown_metric_fails() -> None:
 
 
 def test_understand_unknown_asset_fails() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     with pytest.raises(
         UnderstandingError,
@@ -83,7 +110,7 @@ def test_understand_unknown_asset_fails() -> None:
 
 
 def test_understand_correlation_analysis() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Analyse les corrélations entre LVMH, Hermès "
@@ -103,7 +130,7 @@ def test_understand_correlation_analysis() -> None:
 
 
 def test_understand_drawdown_comparison() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Compare le drawdown de LVMH, Hermès et ASML sur les 2 dernières années",
@@ -122,7 +149,7 @@ def test_understand_drawdown_comparison() -> None:
 
 
 def test_understand_performance_ranking() -> None:
-    understanding = RuleBasedUnderstanding()
+    understanding = build_understanding()
 
     request = understanding.understand(
         "Classe LVMH, Hermès et ASML par performance sur les 2 dernières années",
@@ -138,3 +165,17 @@ def test_understand_performance_ranking() -> None:
     )
     assert request.start_date == date(2024, 8, 9)
     assert request.end_date == date(2026, 8, 9)
+
+
+def test_understand_performance_ranking_from_universe() -> None:
+    understanding = build_understanding()
+
+    request = understanding.understand(
+        "Classe Luxury Europe par performance sur les 2 dernières années",
+        today=date(2026, 8, 10),
+    )
+
+    assert request.objective == AnalysisObjective.RANK
+    assert request.metrics == (AnalysisMetric.PERFORMANCE,)
+    assert request.assets == ()
+    assert request.universe == "Luxury Europe"

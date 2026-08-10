@@ -32,6 +32,9 @@ from equity_strategist.tools.prices import PriceTool
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
 )
+from equity_strategist.universe_registry import (
+    build_default_universe_registry,
+)
 
 
 def build_market_query_service() -> MarketQueryService:
@@ -80,6 +83,7 @@ def build_market_dataset_service() -> MarketDatasetService:
 def build_equity_strategist() -> EquityStrategist:
     """Build the deterministic Equity Strategist pipeline."""
     planner = EquityPlanner()
+    universe_registry = build_default_universe_registry()
 
     executor = EquityExecutor(
         volatility_analysis_service=(build_volatility_analysis_service()),
@@ -88,12 +92,15 @@ def build_equity_strategist() -> EquityStrategist:
         drawdown_analysis_service=(build_drawdown_analysis_service()),
         ranking_analysis_service=(build_ranking_analysis_service()),
         market_query_service=build_market_query_service(),
+        universe_registry=universe_registry,
     )
 
     return EquityStrategist(
         planner=planner,
         executor=executor,
-        understanding=RuleBasedUnderstanding(),
+        understanding=RuleBasedUnderstanding(
+            universe_registry=universe_registry,
+        ),
     )
 
 

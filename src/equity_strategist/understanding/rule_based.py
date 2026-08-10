@@ -6,7 +6,6 @@ from equity_strategist.domain.analysis_request import (
     AnalysisObjective,
     AnalysisRequest,
 )
-
 from equity_strategist.universe_registry.registry import (
     UniverseRegistry,
 )
@@ -40,11 +39,7 @@ class RuleBasedUnderstanding:
         objective = self._parse_objective(clean_question)
         metrics = self._parse_metrics(clean_question)
         universe = self._parse_universe(clean_question)
-        assets = (
-            ()
-            if universe is not None
-            else self._parse_assets(clean_question)
-        )
+        assets = () if universe is not None else self._parse_assets(clean_question)
 
         start_date, end_date = self._parse_period(
             clean_question,
@@ -57,6 +52,7 @@ class RuleBasedUnderstanding:
             objective=objective,
             metrics=metrics,
             assets=assets,
+            universe=universe,
             start_date=start_date,
             end_date=end_date,
             target_date=target_date,
