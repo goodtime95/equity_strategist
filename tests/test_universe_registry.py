@@ -1,6 +1,12 @@
 import pytest
 
-from equity_strategist.domain.universe import Universe
+from equity_strategist.domain.universe import (
+    Universe,
+    UniverseType,
+)
+from equity_strategist.universe_registry.defaults import (
+    build_default_universe_registry,
+)
 from equity_strategist.universe_registry.registry import (
     UniverseRegistry,
 )
@@ -11,6 +17,7 @@ def build_registry() -> UniverseRegistry:
         [
             Universe(
                 name="Luxury Europe",
+                universe_type=UniverseType.STATIC,
                 asset_queries=(
                     "LVMH",
                     "Hermès",
@@ -22,6 +29,7 @@ def build_registry() -> UniverseRegistry:
             ),
             Universe(
                 name="US Tech",
+                universe_type=UniverseType.STATIC,
                 asset_queries=(
                     "Nvidia",
                     "ASML",
@@ -56,12 +64,35 @@ def test_unknown_universe_raises() -> None:
         build_registry().resolve("Unknown Universe")
 
 
-def test_universe_requires_assets() -> None:
+def test_static_universe_requires_assets() -> None:
     with pytest.raises(
         ValueError,
-        match="at least one asset",
+        match="static universe requires assets",
     ):
         Universe(
             name="Empty",
+            universe_type=UniverseType.STATIC,
             asset_queries=(),
         )
+
+
+def test_dynamic_universe_requires_provider_identifier() -> None:
+    with pytest.raises(
+        ValueError,
+        match="dynamic universe requires provider identifier",
+    ):
+        Universe(
+            name="CAC 40",
+            universe_type=UniverseType.DYNAMIC,
+        )
+
+
+def test_resolve_dynamic_universe() -> None:
+    registry = build_default_universe_registry()
+
+    universe = registry.resolve("CAC 40")
+
+    assert universe.name == "CAC 40"
+    assert universe.universe_type == UniverseType.DYNAMIC
+    assert universe.provider_identifier == "CAC40"
+    assert universe.asset_queries == ()

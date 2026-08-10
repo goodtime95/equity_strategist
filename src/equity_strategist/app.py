@@ -19,6 +19,9 @@ from equity_strategist.services.performance_analysis import (
 from equity_strategist.services.ranking_analysis import (
     RankingAnalysisService,
 )
+from equity_strategist.services.universe_constituents import (
+    UniverseConstituentService,
+)
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
@@ -31,6 +34,9 @@ from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
+)
+from equity_strategist.universe_providers.static_mock import (
+    StaticMockUniverseProvider,
 )
 from equity_strategist.universe_registry import (
     build_default_universe_registry,
@@ -84,6 +90,10 @@ def build_equity_strategist() -> EquityStrategist:
     """Build the deterministic Equity Strategist pipeline."""
     planner = EquityPlanner()
     universe_registry = build_default_universe_registry()
+    universe_constituent_service = UniverseConstituentService(
+        universe_registry=universe_registry,
+        universe_provider=StaticMockUniverseProvider(),
+    )
 
     executor = EquityExecutor(
         volatility_analysis_service=(build_volatility_analysis_service()),
@@ -92,7 +102,7 @@ def build_equity_strategist() -> EquityStrategist:
         drawdown_analysis_service=(build_drawdown_analysis_service()),
         ranking_analysis_service=(build_ranking_analysis_service()),
         market_query_service=build_market_query_service(),
-        universe_registry=universe_registry,
+        universe_constituent_service=(universe_constituent_service),
     )
 
     return EquityStrategist(

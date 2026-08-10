@@ -28,11 +28,7 @@ from equity_strategist.domain.analysis_results import (
 )
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.results import PriceOnDateResult
-from equity_strategist.domain.universe import Universe
 from equity_strategist.strategists.executor import EquityExecutor
-from equity_strategist.universe_registry.registry import (
-    UniverseRegistry,
-)
 
 
 class FakeVolatilityAnalysisService:
@@ -198,18 +194,21 @@ class FakeRankingAnalysisService:
         )
 
 
-def build_executor():
-    universe_registry = UniverseRegistry(
-        [
-            Universe(
-                name="Luxury Europe",
-                asset_queries=(
-                    "LVMH",
-                    "Hermès",
-                ),
+class FakeUniverseConstituentService:
+    def get_constituents(
+        self,
+        universe_query: str,
+    ) -> tuple[str, ...]:
+        if universe_query == "Luxury Europe":
+            return (
+                "LVMH",
+                "Hermès",
             )
-        ]
-    )
+
+        raise ValueError(f"unknown universe: {universe_query}")
+
+
+def build_executor():
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
         performance_analysis_service=FakePerformanceAnalysisService(),
@@ -217,7 +216,7 @@ def build_executor():
         drawdown_analysis_service=FakeDrawdownAnalysisService(),
         ranking_analysis_service=FakeRankingAnalysisService(),
         market_query_service=FakeMarketQueryService(),
-        universe_registry=universe_registry,
+        universe_constituent_service=(FakeUniverseConstituentService()),
     )
 
 

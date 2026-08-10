@@ -4,10 +4,7 @@ from equity_strategist.app import build_equity_strategist
 def main() -> None:
     strategist = build_equity_strategist()
 
-    question = (
-        "Classe Luxury Europe par performance "
-        "sur les 2 dernières années"
-    )
+    question = "Classe Luxury Europe par performance sur les 2 dernières années"
 
     print("Question:")
     print(question)

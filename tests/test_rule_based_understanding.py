@@ -6,7 +6,10 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
 )
-from equity_strategist.domain.universe import Universe
+from equity_strategist.domain.universe import (
+    Universe,
+    UniverseType,
+)
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
     UnderstandingError,
@@ -22,6 +25,7 @@ def build_understanding() -> RuleBasedUnderstanding:
         [
             Universe(
                 name="Luxury Europe",
+                universe_type=UniverseType.STATIC,
                 asset_queries=(
                     "LVMH",
                     "Hermès",

@@ -1,17 +1,31 @@
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class UniverseType(StrEnum):
+    STATIC = "static"
+    DYNAMIC = "dynamic"
 
 
 @dataclass(frozen=True, slots=True)
 class Universe:
-    """Named investment universe composed of registered assets."""
+    """Definition of a named investment universe."""
 
     name: str
-    asset_queries: tuple[str, ...]
+    universe_type: UniverseType
+    asset_queries: tuple[str, ...] = ()
+    provider_identifier: str | None = None
     aliases: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("universe name cannot be empty")
 
-        if not self.asset_queries:
-            raise ValueError("universe must contain at least one asset")
+        if self.universe_type == UniverseType.STATIC and not self.asset_queries:
+            raise ValueError("static universe requires assets")
+
+        if (
+            self.universe_type == UniverseType.DYNAMIC
+            and self.provider_identifier is None
+        ):
+            raise ValueError("dynamic universe requires provider identifier")

@@ -1,4 +1,7 @@
-from equity_strategist.domain.universe import Universe
+from equity_strategist.domain.universe import (
+    Universe,
+    UniverseType,
+)
 from equity_strategist.universe_registry.registry import (
     UniverseRegistry,
 )
@@ -6,6 +9,7 @@ from equity_strategist.universe_registry.registry import (
 DEFAULT_UNIVERSES = [
     Universe(
         name="Luxury Europe",
+        universe_type=UniverseType.STATIC,
         asset_queries=(
             "LVMH",
             "Hermès",
@@ -13,6 +17,15 @@ DEFAULT_UNIVERSES = [
         aliases=(
             "European Luxury",
             "Luxury",
+        ),
+    ),
+    Universe(
+        name="CAC 40",
+        universe_type=UniverseType.DYNAMIC,
+        provider_identifier="CAC40",
+        aliases=(
+            "CAC40",
+            "CAC",
         ),
     ),
 ]
