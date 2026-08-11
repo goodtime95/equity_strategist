@@ -1,5 +1,9 @@
 from typing import Protocol
 
+from equity_strategist.domain.universe_constituent import (
+    UniverseConstituent,
+)
+
 
 class UniverseProvider(Protocol):
     """Provider able to return constituents of a dynamic universe."""
@@ -7,6 +11,6 @@ class UniverseProvider(Protocol):
     def get_constituents(
         self,
         provider_identifier: str,
-    ) -> tuple[str, ...]:
-        """Return asset queries for a dynamic universe."""
+    ) -> tuple[UniverseConstituent, ...]:
+        """Return structured constituent references."""
         ...

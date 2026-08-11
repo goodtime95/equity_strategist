@@ -13,8 +13,12 @@ class Universe:
 
     name: str
     universe_type: UniverseType
+
     asset_queries: tuple[str, ...] = ()
+
+    provider: str | None = None
     provider_identifier: str | None = None
+
     aliases: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -24,8 +28,9 @@ class Universe:
         if self.universe_type == UniverseType.STATIC and not self.asset_queries:
             raise ValueError("static universe requires assets")
 
-        if (
-            self.universe_type == UniverseType.DYNAMIC
-            and self.provider_identifier is None
-        ):
-            raise ValueError("dynamic universe requires provider identifier")
+        if self.universe_type == UniverseType.DYNAMIC:
+            if self.provider is None:
+                raise ValueError("dynamic universe requires provider")
+
+            if self.provider_identifier is None:
+                raise ValueError("dynamic universe requires provider identifier")

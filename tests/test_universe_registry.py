@@ -84,6 +84,7 @@ def test_dynamic_universe_requires_provider_identifier() -> None:
         Universe(
             name="CAC 40",
             universe_type=UniverseType.DYNAMIC,
+            provider="euronext",
         )
 
 
@@ -94,5 +95,6 @@ def test_resolve_dynamic_universe() -> None:
 
     assert universe.name == "CAC 40"
     assert universe.universe_type == UniverseType.DYNAMIC
-    assert universe.provider_identifier == "CAC40"
+    assert universe.provider == "euronext"
+    assert universe.provider_identifier == "FR0003500008"
     assert universe.asset_queries == ()
