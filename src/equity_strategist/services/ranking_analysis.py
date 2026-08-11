@@ -7,6 +7,8 @@ from equity_strategist.domain.analysis_results import (
     RankingItem,
     RankingResult,
 )
+from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.market_dataset import MarketDataset
 from equity_strategist.services.market_dataset import (
     MarketDatasetService,
 )
@@ -36,6 +38,41 @@ class RankingAnalysisService:
             end_date=end_date,
         )
 
+        return self._rank_performance_dataset(
+            dataset=dataset,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def rank_performance_for_assets(
+        self,
+        assets: tuple[Asset, ...],
+        start_date: date,
+        end_date: date,
+        universe: str | None = None,
+    ) -> RankingResult:
+        if len(assets) < 2:
+            raise ValueError("at least two assets are required for ranking")
+
+        dataset = self.market_dataset_service.build_price_dataset_for_assets(
+            assets=assets,
+            start_date=start_date,
+            end_date=end_date,
+            universe=universe,
+        )
+
+        return self._rank_performance_dataset(
+            dataset=dataset,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    @staticmethod
+    def _rank_performance_dataset(
+        dataset: MarketDataset,
+        start_date: date,
+        end_date: date,
+    ) -> RankingResult:
         raw_items = []
 
         for price_series in dataset.series_by_symbol.values():

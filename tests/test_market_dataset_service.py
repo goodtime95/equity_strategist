@@ -54,6 +54,31 @@ class FakeMarketSeriesService:
             metadata={"asset": asset},
         )
 
+    def get_price_series_for_asset(
+        self,
+        asset: Asset,
+        start_date: date,
+        end_date: date,
+        adjusted_close: bool = True,
+    ) -> MarketSeries:
+        return MarketSeries(
+            identifier=asset.symbol,
+            kind=SeriesKind.PRICE,
+            values=pd.Series(
+                [100.0, 101.0],
+                index=pd.to_datetime(
+                    [
+                        "2024-01-01",
+                        "2024-01-02",
+                    ]
+                ),
+            ),
+            unit=asset.currency,
+            metadata={
+                "asset": asset,
+            },
+        )
+
 
 def test_build_price_dataset() -> None:
     service = MarketDatasetService(market_series_service=FakeMarketSeriesService())
@@ -85,3 +110,36 @@ def test_build_price_dataset_requires_assets() -> None:
             start_date=date(2020, 1, 1),
             end_date=date(2020, 1, 2),
         )
+
+
+def test_build_price_dataset_from_resolved_assets() -> None:
+    service = MarketDatasetService(market_series_service=FakeMarketSeriesService())
+
+    assets = (
+        Asset(
+            symbol="MC.PA",
+            name="LVMH",
+            exchange="Paris",
+            currency="EUR",
+        ),
+        Asset(
+            symbol="RMS.PA",
+            name="Hermès",
+            exchange="Paris",
+            currency="EUR",
+        ),
+    )
+
+    dataset = service.build_price_dataset_for_assets(
+        assets=assets,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 12, 31),
+        universe="Luxury Europe",
+    )
+
+    assert dataset.size == 2
+    assert dataset.symbols == (
+        "MC.PA",
+        "RMS.PA",
+    )
+    assert dataset.universe == "Luxury Europe"

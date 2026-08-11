@@ -32,6 +32,9 @@ from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
+from equity_strategist.tools.universe_assets import (
+    UniverseAssetResolver,
+)
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
 )
@@ -88,11 +91,16 @@ def build_market_dataset_service() -> MarketDatasetService:
 
 def build_equity_strategist() -> EquityStrategist:
     """Build the deterministic Equity Strategist pipeline."""
+
     planner = EquityPlanner()
     universe_registry = build_default_universe_registry()
     universe_constituent_service = UniverseConstituentService(
         universe_registry=universe_registry,
         universe_provider=StaticMockUniverseProvider(),
+    )
+    universe_asset_resolver = UniverseAssetResolver(
+        asset_resolver=AssetResolver(build_default_asset_registry()),
+        market_data_provider=YahooFinanceProvider(),
     )
 
     executor = EquityExecutor(
@@ -103,6 +111,7 @@ def build_equity_strategist() -> EquityStrategist:
         ranking_analysis_service=(build_ranking_analysis_service()),
         market_query_service=build_market_query_service(),
         universe_constituent_service=(universe_constituent_service),
+        universe_asset_resolver=(universe_asset_resolver),
     )
 
     return EquityStrategist(

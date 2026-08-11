@@ -27,6 +27,9 @@ from equity_strategist.services.universe_constituents import (
 from equity_strategist.services.volatility_analysis import (
     VolatilityAnalysisService,
 )
+from equity_strategist.tools.universe_assets import (
+    UniverseAssetResolver,
+)
 
 
 class EquityExecutor:
@@ -41,6 +44,7 @@ class EquityExecutor:
         ranking_analysis_service: RankingAnalysisService,
         market_query_service: MarketQueryService,
         universe_constituent_service: UniverseConstituentService,
+        universe_asset_resolver: UniverseAssetResolver,
     ) -> None:
         self.volatility_analysis_service = volatility_analysis_service
         self.performance_analysis_service = performance_analysis_service
@@ -49,6 +53,7 @@ class EquityExecutor:
         self.ranking_analysis_service = ranking_analysis_service
         self.market_query_service = market_query_service
         self.universe_constituent_service = universe_constituent_service
+        self.universe_asset_resolver = universe_asset_resolver
 
     def _resolve_asset_queries(
         self,
@@ -169,10 +174,27 @@ class EquityExecutor:
             if request.end_date is None:
                 raise ValueError("RANK_PERFORMANCE requires end_date")
 
-            return self.ranking_analysis_service.rank_performance(
-                asset_queries=self._resolve_asset_queries(plan),
-                start_date=request.start_date,
-                end_date=request.end_date,
-            )
+            if request.assets:
+                return self.ranking_analysis_service.rank_performance(
+                    asset_queries=list(request.assets),
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                )
+
+            if request.universe is not None:
+                constituents = self.universe_constituent_service.get_constituents(
+                    request.universe
+                )
+
+                assets = self.universe_asset_resolver.resolve_many(constituents)
+
+                return self.ranking_analysis_service.rank_performance_for_assets(
+                    assets=assets,
+                    start_date=request.start_date,
+                    end_date=request.end_date,
+                    universe=request.universe,
+                )
+
+            raise ValueError("RANK_PERFORMANCE requires assets or universe")
 
         raise ValueError(f"unsupported capability: {capability}")

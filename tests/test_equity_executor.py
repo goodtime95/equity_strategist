@@ -193,6 +193,33 @@ class FakeRankingAnalysisService:
             ),
         )
 
+    def rank_performance_for_assets(
+        self,
+        assets,
+        start_date,
+        end_date,
+        universe=None,
+    ):
+        return RankingResult(
+            metric="performance",
+            start_date=start_date,
+            end_date=end_date,
+            items=(
+                RankingItem(
+                    rank=1,
+                    symbol="MC.PA",
+                    name="LVMH",
+                    value=0.20,
+                ),
+                RankingItem(
+                    rank=2,
+                    symbol="RMS.PA",
+                    name="Hermès",
+                    value=0.10,
+                ),
+            ),
+        )
+
 
 class FakeUniverseConstituentService:
     def get_constituents(
@@ -208,6 +235,25 @@ class FakeUniverseConstituentService:
         raise ValueError(f"unknown universe: {universe_query}")
 
 
+class FakeUniverseAssetResolver:
+    def resolve_many(
+        self,
+        constituents,
+    ):
+        return (
+            Asset(
+                symbol="MC.PA",
+                name="LVMH",
+                currency="EUR",
+            ),
+            Asset(
+                symbol="RMS.PA",
+                name="Hermès",
+                currency="EUR",
+            ),
+        )
+
+
 def build_executor():
     return EquityExecutor(
         volatility_analysis_service=FakeVolatilityAnalysisService(),
@@ -217,6 +263,7 @@ def build_executor():
         ranking_analysis_service=FakeRankingAnalysisService(),
         market_query_service=FakeMarketQueryService(),
         universe_constituent_service=(FakeUniverseConstituentService()),
+        universe_asset_resolver=FakeUniverseAssetResolver(),
     )
 
 
