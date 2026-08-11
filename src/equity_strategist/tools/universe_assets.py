@@ -71,20 +71,33 @@ class UniverseAssetResolver:
         self,
         constituent: UniverseConstituent,
     ) -> Asset | None:
-        candidates = self.market_data_provider.search_assets(constituent.name)
+        queries = [
+            constituent.name,
+            f"{constituent.name} Paris",
+        ]
 
-        if constituent.exchange is not None:
-            exchange_matches = [
-                asset
-                for asset in candidates
-                if asset.exchange
-                and constituent.exchange.casefold() in asset.exchange.casefold()
+        for query in queries:
+            candidates = self.market_data_provider.search_assets(query)
+
+            paris_candidates = [
+                asset for asset in candidates if asset.symbol.endswith(".PA")
             ]
 
-            if len(exchange_matches) == 1:
-                return exchange_matches[0]
+            if len(paris_candidates) == 1:
+                return paris_candidates[0]
 
-        if len(candidates) == 1:
-            return candidates[0]
+            if constituent.exchange is not None:
+                exchange_matches = [
+                    asset
+                    for asset in candidates
+                    if asset.exchange
+                    and constituent.exchange.casefold() in asset.exchange.casefold()
+                ]
+
+                if len(exchange_matches) == 1:
+                    return exchange_matches[0]
+
+            if len(candidates) == 1:
+                return candidates[0]
 
         return None

@@ -23,7 +23,7 @@ DEFAULT_UNIVERSES = [
         name="CAC 40",
         universe_type=UniverseType.DYNAMIC,
         provider="euronext",
-        provider_identifier="FR0003500008",
+        provider_identifier="FR0003500008-XPAR",
         aliases=(
             "CAC40",
             "CAC",

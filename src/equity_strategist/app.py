@@ -38,8 +38,8 @@ from equity_strategist.tools.universe_assets import (
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
 )
-from equity_strategist.universe_providers.static_mock import (
-    StaticMockUniverseProvider,
+from equity_strategist.universe_providers.euronext import (
+    EuronextUniverseProvider,
 )
 from equity_strategist.universe_registry import (
     build_default_universe_registry,
@@ -96,7 +96,9 @@ def build_equity_strategist() -> EquityStrategist:
     universe_registry = build_default_universe_registry()
     universe_constituent_service = UniverseConstituentService(
         universe_registry=universe_registry,
-        universe_provider=StaticMockUniverseProvider(),
+        universe_providers={
+            "euronext": EuronextUniverseProvider(),
+        },
     )
     universe_asset_resolver = UniverseAssetResolver(
         asset_resolver=AssetResolver(build_default_asset_registry()),
