@@ -16,6 +16,8 @@ from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
 from equity_strategist.domain.analysis_results import (
+    PerformanceComparisonResult,
+    PerformanceItem,
     VolatilityComparisonResult,
     VolatilityItem,
 )
@@ -138,3 +140,94 @@ def test_interpret_price_result():
     assert "314.90" in answer
     assert "2020-03-13" in answer
     assert "previous available trading session" in answer
+
+
+def test_interpret_multiple_results() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(
+            AnalysisMetric.PERFORMANCE,
+            AnalysisMetric.VOLATILITY,
+        ),
+        assets=(
+            "LVMH",
+            "Hermès",
+        ),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+    )
+
+    plan = AnalysisPlan(
+        request=request,
+        steps=(
+            PlanStep(
+                capability=Capability.COMPARE_PERFORMANCE,
+            ),
+            PlanStep(
+                capability=Capability.COMPARE_VOLATILITY,
+            ),
+        ),
+    )
+
+    performance_result = PerformanceComparisonResult(
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+        items=(
+            PerformanceItem(
+                symbol="MC.PA",
+                name="LVMH",
+                performance=0.20,
+            ),
+            PerformanceItem(
+                symbol="RMS.PA",
+                name="Hermès",
+                performance=0.15,
+            ),
+        ),
+    )
+
+    volatility_result = VolatilityComparisonResult(
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+        annualization_factor=252,
+        items=(
+            VolatilityItem(
+                symbol="MC.PA",
+                name="LVMH",
+                volatility=0.30,
+            ),
+            VolatilityItem(
+                symbol="RMS.PA",
+                name="Hermès",
+                volatility=0.25,
+            ),
+        ),
+    )
+
+    execution = AnalysisExecutionResult(
+        plan=plan,
+        step_results=(
+            StepExecutionResult(
+                capability=Capability.COMPARE_PERFORMANCE,
+                result=performance_result,
+            ),
+            StepExecutionResult(
+                capability=Capability.COMPARE_VOLATILITY,
+                result=volatility_result,
+            ),
+        ),
+    )
+
+    strategist = EquityStrategist(
+        understanding=None,
+        planner=None,
+        executor=None,
+    )
+
+    answer = strategist.interpret(execution)
+
+    assert "Historical performance comparison" in answer
+    assert "Historical volatility comparison" in answer
+
+    assert "LVMH (MC.PA): 20.00%" in answer
+    assert "LVMH (MC.PA): 30.00%" in answer

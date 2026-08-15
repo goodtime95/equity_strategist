@@ -4,7 +4,9 @@ import pandas as pd
 import pytest
 
 from equity_strategist.domain.asset import Asset
-from equity_strategist.domain.market_dataset import MarketDataset
+from equity_strategist.domain.market_dataset import (
+    MarketDataset,
+)
 from equity_strategist.domain.market_series import (
     MarketSeries,
     SeriesKind,
@@ -125,3 +127,28 @@ def test_rank_performance_requires_two_assets() -> None:
             start_date=date(2020, 1, 1),
             end_date=date(2020, 1, 7),
         )
+
+
+def test_rank_volatility() -> None:
+    service = RankingAnalysisService(market_dataset_service=FakeMarketDatasetService())
+
+    result = service.rank_volatility(
+        asset_queries=[
+            "LVMH",
+            "Hermès",
+            "ASML",
+        ],
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 12, 31),
+    )
+
+    assert result.metric == "volatility"
+
+    assert tuple(item.symbol for item in result.items) == (
+        "ASML.AS",
+        "RMS.PA",
+        "MC.PA",
+    )
+
+    assert result.items[0].value > result.items[1].value
+    assert result.items[1].value > result.items[2].value

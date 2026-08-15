@@ -17,6 +17,23 @@ class EquityPlanner:
         self,
         request: AnalysisRequest,
     ) -> AnalysisPlan:
+
+        if request.objective == AnalysisObjective.COMPARE and set(request.metrics) == {
+            AnalysisMetric.PERFORMANCE,
+            AnalysisMetric.VOLATILITY,
+        }:
+            return AnalysisPlan(
+                request=request,
+                steps=(
+                    PlanStep(
+                        capability=Capability.COMPARE_PERFORMANCE,
+                    ),
+                    PlanStep(
+                        capability=Capability.COMPARE_VOLATILITY,
+                    ),
+                ),
+            )
+
         if request.objective == AnalysisObjective.COMPARE and request.metrics == (
             AnalysisMetric.VOLATILITY,
         ):
@@ -63,6 +80,18 @@ class EquityPlanner:
             return AnalysisPlan(
                 request=request,
                 steps=(PlanStep(capability=Capability.RANK_PERFORMANCE),),
+            )
+
+        if request.objective == AnalysisObjective.RANK and request.metrics == (
+            AnalysisMetric.VOLATILITY,
+        ):
+            return AnalysisPlan(
+                request=request,
+                steps=(
+                    PlanStep(
+                        capability=Capability.RANK_VOLATILITY,
+                    ),
+                ),
             )
 
         raise ValueError("unsupported analysis request")

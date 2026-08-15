@@ -3,6 +3,13 @@ from datetime import date
 from equity_strategist.compute.performance import (
     compute_total_performance,
 )
+from equity_strategist.compute.returns import (
+    ReturnMethod,
+    compute_returns,
+)
+from equity_strategist.compute.volatility import (
+    compute_volatility,
+)
 from equity_strategist.domain.analysis_results import (
     RankingItem,
     RankingResult,
@@ -65,6 +72,73 @@ class RankingAnalysisService:
             dataset=dataset,
             start_date=start_date,
             end_date=end_date,
+        )
+
+    def rank_volatility(
+        self,
+        asset_queries: list[str],
+        start_date: date,
+        end_date: date,
+    ) -> RankingResult:
+        if len(asset_queries) < 2:
+            raise ValueError("at least two assets are required for ranking")
+
+        dataset = self.market_dataset_service.build_price_dataset(
+            asset_queries=asset_queries,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        raw_items = []
+
+        for price_series in dataset.series_by_symbol.values():
+            return_series = compute_returns(
+                price_series=price_series,
+                method=ReturnMethod.LOG,
+            )
+
+            volatility = compute_volatility(
+                return_series=return_series,
+                annualization_factor=252,
+            )
+
+            asset = price_series.metadata["asset"]
+
+            raw_items.append(
+                (
+                    asset.symbol,
+                    asset.name,
+                    volatility,
+                )
+            )
+
+        raw_items.sort(
+            key=lambda item: item[2],
+            reverse=True,
+        )
+
+        ranked_items = tuple(
+            RankingItem(
+                rank=rank,
+                symbol=symbol,
+                name=name,
+                value=value,
+            )
+            for rank, (
+                symbol,
+                name,
+                value,
+            ) in enumerate(
+                raw_items,
+                start=1,
+            )
+        )
+
+        return RankingResult(
+            metric="volatility",
+            start_date=start_date,
+            end_date=end_date,
+            items=ranked_items,
         )
 
     @staticmethod

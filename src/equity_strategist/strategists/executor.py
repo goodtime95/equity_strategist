@@ -197,4 +197,17 @@ class EquityExecutor:
 
             raise ValueError("RANK_PERFORMANCE requires assets or universe")
 
+        if capability == Capability.RANK_VOLATILITY:
+            if request.start_date is None:
+                raise ValueError("RANK_VOLATILITY requires start_date")
+
+            if request.end_date is None:
+                raise ValueError("RANK_VOLATILITY requires end_date")
+
+            return self.ranking_analysis_service.rank_volatility(
+                asset_queries=list(request.assets),
+                start_date=request.start_date,
+                end_date=request.end_date,
+            )
+
         raise ValueError(f"unsupported capability: {capability}")

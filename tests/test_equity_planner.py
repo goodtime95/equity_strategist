@@ -108,3 +108,27 @@ def test_plan_performance_ranking() -> None:
 
     assert len(plan.steps) == 1
     assert plan.steps[0].capability == Capability.RANK_PERFORMANCE
+
+
+def test_plan_performance_and_volatility_comparison() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(
+            AnalysisMetric.PERFORMANCE,
+            AnalysisMetric.VOLATILITY,
+        ),
+        assets=(
+            "LVMH",
+            "Hermès",
+            "ASML",
+        ),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+    )
+
+    plan = EquityPlanner().plan(request)
+
+    assert tuple(step.capability for step in plan.steps) == (
+        Capability.COMPARE_PERFORMANCE,
+        Capability.COMPARE_VOLATILITY,
+    )

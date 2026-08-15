@@ -220,6 +220,38 @@ class FakeRankingAnalysisService:
             ),
         )
 
+    def rank_volatility(
+        self,
+        asset_queries,
+        start_date,
+        end_date,
+    ):
+        return RankingResult(
+            metric="volatility",
+            start_date=start_date,
+            end_date=end_date,
+            items=(
+                RankingItem(
+                    rank=1,
+                    symbol="ASML.AS",
+                    name="ASML",
+                    value=0.40,
+                ),
+                RankingItem(
+                    rank=2,
+                    symbol="MC.PA",
+                    name="LVMH",
+                    value=0.30,
+                ),
+                RankingItem(
+                    rank=3,
+                    symbol="RMS.PA",
+                    name="Hermès",
+                    value=0.25,
+                ),
+            ),
+        )
+
 
 class FakeUniverseConstituentService:
     def get_constituents(

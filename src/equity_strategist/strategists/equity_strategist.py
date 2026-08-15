@@ -64,11 +64,18 @@ class EquityStrategist:
         self,
         execution: AnalysisExecutionResult,
     ) -> str:
-        """Convert structured execution results into readable text."""
-        if len(execution.step_results) != 1:
-            raise ValueError("temporary interpreter supports exactly one result")
+        sections = tuple(
+            self._interpret_step(step_result.result)
+            for step_result in execution.step_results
+        )
 
-        result = execution.step_results[0].result
+        return "\n\n".join(sections)
+
+    def _interpret_step(
+        self,
+        result: object,
+    ) -> str:
+        """Convert one structured result into readable text."""
 
         if isinstance(result, VolatilityComparisonResult):
             return self._interpret_volatility(result)
