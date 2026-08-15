@@ -38,6 +38,12 @@ from equity_strategist.tools.prices import PriceTool
 from equity_strategist.tools.universe_assets import (
     UniverseAssetResolver,
 )
+from equity_strategist.understanding.base import (
+    UnderstandingProvider,
+)
+from equity_strategist.understanding.llm import (
+    LLMUnderstanding,
+)
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
 )
@@ -46,6 +52,9 @@ from equity_strategist.universe_providers.euronext import (
 )
 from equity_strategist.universe_registry import (
     build_default_universe_registry,
+)
+from equity_strategist.universe_registry.registry import (
+    UniverseRegistry,
 )
 
 
@@ -92,17 +101,21 @@ def build_market_dataset_service() -> MarketDatasetService:
     )
 
 
-def build_equity_strategist() -> EquityStrategist:
-    """Build the deterministic Equity Strategist pipeline."""
+def _build_equity_pipeline(
+    understanding: UnderstandingProvider,
+    universe_registry: UniverseRegistry,
+) -> EquityStrategist:
+    """Build the shared Equity Strategist pipeline."""
 
     planner = EquityPlanner()
-    universe_registry = build_default_universe_registry()
+
     universe_constituent_service = UniverseConstituentService(
         universe_registry=universe_registry,
         universe_providers={
             "euronext": EuronextUniverseProvider(),
         },
     )
+
     universe_asset_resolver = UniverseAssetResolver(
         asset_resolver=AssetResolver(build_default_asset_registry()),
         market_data_provider=YahooFinanceProvider(),
@@ -120,12 +133,34 @@ def build_equity_strategist() -> EquityStrategist:
     )
 
     return EquityStrategist(
+        understanding=understanding,
         planner=planner,
         executor=executor,
         validator=AnalysisRequestValidator(),
+    )
+
+
+def build_equity_strategist() -> EquityStrategist:
+    """Build the deterministic Equity Strategist pipeline."""
+
+    universe_registry = build_default_universe_registry()
+
+    return _build_equity_pipeline(
         understanding=RuleBasedUnderstanding(
             universe_registry=universe_registry,
         ),
+        universe_registry=universe_registry,
+    )
+
+
+def build_llm_equity_strategist() -> EquityStrategist:
+    """Build the LLM-powered Equity Strategist pipeline."""
+
+    universe_registry = build_default_universe_registry()
+
+    return _build_equity_pipeline(
+        understanding=LLMUnderstanding(),
+        universe_registry=universe_registry,
     )
 
 
