@@ -55,6 +55,7 @@ src/equity_strategist/tools/exceptions.py
 src/equity_strategist/tools/prices.py
 src/equity_strategist/tools/universe_assets.py
 src/equity_strategist/understanding/__init__.py
+src/equity_strategist/understanding/base.py
 src/equity_strategist/understanding/rule_based.py
 src/equity_strategist/universe_providers/__init__.py
 src/equity_strategist/universe_providers/euronext.py
@@ -87,6 +88,7 @@ tests/test_price_tool.py
 tests/test_ranking_analysis.py
 tests/test_returns.py
 tests/test_rule_based_understanding.py
+tests/test_understanding_protocol.py
 tests/test_universe_asset_resolver.py
 tests/test_universe_constituent_service.py
 tests/test_universe_registry.py

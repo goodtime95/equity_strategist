@@ -6,6 +6,7 @@ Requires-Python: <3.13,>=3.12
 Description-Content-Type: text/markdown
 Requires-Dist: pandas>=2.2
 Requires-Dist: yfinance>=0.2
+Requires-Dist: openai>=1.0
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
