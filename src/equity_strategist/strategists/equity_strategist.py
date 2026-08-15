@@ -14,8 +14,8 @@ from equity_strategist.domain.analysis_results import (
 from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
-from equity_strategist.understanding.rule_based import (
-    RuleBasedUnderstanding,
+from equity_strategist.understanding.base import (
+    UnderstandingProvider,
 )
 
 
@@ -24,7 +24,7 @@ class EquityStrategist:
 
     def __init__(
         self,
-        understanding: RuleBasedUnderstanding,
+        understanding: UnderstandingProvider,
         planner: EquityPlanner,
         executor: EquityExecutor,
     ) -> None:
