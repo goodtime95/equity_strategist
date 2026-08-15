@@ -132,3 +132,29 @@ def test_plan_performance_and_volatility_comparison() -> None:
         Capability.COMPARE_PERFORMANCE,
         Capability.COMPARE_VOLATILITY,
     )
+
+
+def test_plan_three_metric_comparison() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(
+            AnalysisMetric.PERFORMANCE,
+            AnalysisMetric.VOLATILITY,
+            AnalysisMetric.DRAWDOWN,
+        ),
+        assets=(
+            "LVMH",
+            "Hermès",
+            "ASML",
+        ),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+    )
+
+    plan = EquityPlanner().plan(request)
+
+    assert tuple(step.capability for step in plan.steps) == (
+        Capability.COMPARE_PERFORMANCE,
+        Capability.COMPARE_VOLATILITY,
+        Capability.COMPARE_DRAWDOWN,
+    )

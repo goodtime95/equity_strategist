@@ -23,10 +23,7 @@ def main() -> None:
         [metric.value for metric in request.metrics],
     )
     print(f"Assets: {request.assets}")
-    print(
-        f"Period: {request.start_date} "
-        f"-> {request.end_date}"
-    )
+    print(f"Period: {request.start_date} -> {request.end_date}")
     print()
 
     plan = strategist.planner.plan(request)
@@ -36,10 +33,7 @@ def main() -> None:
         plan.steps,
         start=1,
     ):
-        print(
-            f"{index}. "
-            f"{step.capability.value}"
-        )
+        print(f"{index}. {step.capability.value}")
 
     print()
     print("Answer:")
