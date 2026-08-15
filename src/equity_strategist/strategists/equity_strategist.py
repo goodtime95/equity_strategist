@@ -11,9 +11,16 @@ from equity_strategist.domain.analysis_results import (
     RankingResult,
     VolatilityComparisonResult,
 )
+from equity_strategist.domain.request_validation import (
+    RequestStatus,
+    RequestValidationResult,
+)
 from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
+from equity_strategist.strategists.validator import (
+    AnalysisRequestValidator,
+)
 from equity_strategist.understanding.base import (
     UnderstandingProvider,
 )
@@ -27,10 +34,12 @@ class EquityStrategist:
         understanding: UnderstandingProvider,
         planner: EquityPlanner,
         executor: EquityExecutor,
+        validator: AnalysisRequestValidator,
     ) -> None:
         self.understanding = understanding
         self.planner = planner
         self.executor = executor
+        self.validator = validator
 
     def answer(
         self,
@@ -38,16 +47,25 @@ class EquityStrategist:
     ) -> str:
         """Answer a natural-language equity question."""
         request = self.understand(question)
-        plan = self.planner.plan(request)
-        execution = self.executor.execute(plan)
 
-        return self.interpret(execution)
+        return self._answer_request(request)
 
     def answer_request(
         self,
         request: AnalysisRequest,
     ) -> str:
         """Execute a structured request and return a readable answer."""
+        return self._answer_request(request)
+
+    def _answer_request(
+        self,
+        request: AnalysisRequest,
+    ) -> str:
+        validation = self.validator.validate(request)
+
+        if not validation.is_ready:
+            return self._interpret_validation(validation)
+
         plan = self.planner.plan(request)
         execution = self.executor.execute(plan)
 
@@ -230,5 +248,25 @@ class EquityStrategist:
             name = item.name or item.symbol
 
             lines.append(f"{item.rank}. {name} ({item.symbol}): {item.value:.2%}")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _interpret_validation(
+        validation: RequestValidationResult,
+    ) -> str:
+        if validation.status == RequestStatus.NEEDS_CLARIFICATION:
+            header = "I need clarification before running the analysis:"
+
+        elif validation.status == RequestStatus.UNSUPPORTED:
+            header = "I understand the request, but this analysis is not supported yet:"
+
+        else:
+            raise ValueError(f"unexpected validation status: {validation.status}")
+
+        lines = [
+            header,
+            *(f"- {issue}" for issue in validation.issues),
+        ]
 
         return "\n".join(lines)

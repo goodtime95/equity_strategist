@@ -26,6 +26,10 @@ from equity_strategist.domain.results import PriceOnDateResult
 from equity_strategist.strategists.equity_strategist import (
     EquityStrategist,
 )
+from equity_strategist.strategists.planner import EquityPlanner
+from equity_strategist.strategists.validator import (
+    AnalysisRequestValidator,
+)
 
 
 def test_interpret_volatility_result():
@@ -78,6 +82,7 @@ def test_interpret_volatility_result():
         understanding=None,
         planner=None,
         executor=None,
+        validator=AnalysisRequestValidator(),
     )
 
     answer = strategist.interpret(execution)
@@ -132,6 +137,7 @@ def test_interpret_price_result():
         understanding=None,
         planner=None,
         executor=None,
+        validator=AnalysisRequestValidator(),
     )
 
     answer = strategist.interpret(execution)
@@ -222,6 +228,7 @@ def test_interpret_multiple_results() -> None:
         understanding=None,
         planner=None,
         executor=None,
+        validator=AnalysisRequestValidator(),
     )
 
     answer = strategist.interpret(execution)
@@ -231,3 +238,55 @@ def test_interpret_multiple_results() -> None:
 
     assert "LVMH (MC.PA): 20.00%" in answer
     assert "LVMH (MC.PA): 30.00%" in answer
+
+
+def test_answer_request_stops_when_clarification_is_needed() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(),
+        assets=(
+            "Schneider Electric",
+            "Safran",
+        ),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        unresolved=("The metric to compare is not specified.",),
+    )
+
+    strategist = EquityStrategist(
+        understanding=None,
+        planner=EquityPlanner(),
+        executor=None,
+        validator=AnalysisRequestValidator(),
+    )
+
+    answer = strategist.answer_request(request)
+
+    assert "clarification" in answer.lower()
+    assert "metric" in answer.lower()
+
+
+def test_answer_request_stops_when_analysis_is_unsupported() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.DRAWDOWN,),
+        assets=(
+            "LVMH",
+            "Hermès",
+            "ASML",
+        ),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+    )
+
+    strategist = EquityStrategist(
+        understanding=None,
+        planner=EquityPlanner(),
+        executor=None,
+        validator=AnalysisRequestValidator(),
+    )
+
+    answer = strategist.answer_request(request)
+
+    assert "not supported yet" in answer.lower()
+    assert "rank + drawdown" in answer.lower()

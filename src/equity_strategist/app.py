@@ -30,6 +30,9 @@ from equity_strategist.strategists.equity_strategist import (
 )
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
+from equity_strategist.strategists.validator import (
+    AnalysisRequestValidator,
+)
 from equity_strategist.tools.assets import AssetResolver
 from equity_strategist.tools.prices import PriceTool
 from equity_strategist.tools.universe_assets import (
@@ -119,6 +122,7 @@ def build_equity_strategist() -> EquityStrategist:
     return EquityStrategist(
         planner=planner,
         executor=executor,
+        validator=AnalysisRequestValidator(),
         understanding=RuleBasedUnderstanding(
             universe_registry=universe_registry,
         ),
