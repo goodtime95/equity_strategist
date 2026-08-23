@@ -15,6 +15,22 @@ from equity_strategist.tools.exceptions import (
 class AssetResolver:
     """Resolve a user query into a financial asset."""
 
+    LEGAL_SUFFIXES = {
+        "ag",
+        "aktiengesellschaft",
+        "sa",
+        "se",
+        "plc",
+        "nv",
+        "inc",
+        "incorporated",
+        "corp",
+        "corporation",
+        "ltd",
+        "limited",
+        "spa",
+    }
+
     def __init__(
         self,
         registry: AssetRegistry,
@@ -69,6 +85,14 @@ class AssetResolver:
 
         if len(fallback_assets) == 1:
             return fallback_assets[0]
+
+        company_matches = self._filter_company_matches(
+            query=clean_query,
+            assets=fallback_assets,
+        )
+
+        if company_matches:
+            fallback_assets = company_matches
 
         primary_asset = self.fallback_provider.select_primary_asset(fallback_assets)
 
@@ -251,3 +275,41 @@ class AssetResolver:
         )
 
         return " ".join(normalized.split())
+
+    @classmethod
+    def _normalize_company_name(
+        cls,
+        value: str,
+    ) -> str:
+        normalized = cls._normalize_text(value)
+        normalized = (
+            normalized.replace(" s e", " se")
+            .replace(" s a", " sa")
+            .replace(" n v", " nv")
+        )
+
+        tokens = [
+            token for token in normalized.split() if token not in cls.LEGAL_SUFFIXES
+        ]
+
+        return " ".join(tokens)
+
+    @classmethod
+    def _filter_company_matches(
+        cls,
+        query: str,
+        assets: list[Asset],
+    ) -> list[Asset]:
+        normalized_query = cls._normalize_company_name(query)
+
+        exact_company_matches = [
+            asset
+            for asset in assets
+            if asset.name
+            and cls._normalize_company_name(asset.name) == normalized_query
+        ]
+
+        if exact_company_matches:
+            return exact_company_matches
+
+        return assets

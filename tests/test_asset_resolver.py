@@ -17,6 +17,7 @@ class FakeMarketDataProvider:
     ) -> None:
         self.assets = assets
         self.primary_asset = primary_asset
+        self.primary_selection_assets: list[Asset] | None = None
 
     def search_assets(
         self,
@@ -28,6 +29,7 @@ class FakeMarketDataProvider:
         self,
         assets: list[Asset],
     ) -> Asset | None:
+        self.primary_selection_assets = assets
         return self.primary_asset
 
 
@@ -251,3 +253,92 @@ def test_resolver_keeps_multiple_external_listings_ambiguous() -> None:
         match="Several external assets",
     ):
         resolver.resolve("Schneider Electric")
+
+
+def test_resolver_uses_primary_asset_from_fallback_provider() -> None:
+    registry = AssetRegistry(
+        assets=[],
+    )
+
+    primary_asset = Asset(
+        symbol="SU.PA",
+        name="Schneider Electric S.E.",
+        exchange="Paris",
+        currency="EUR",
+    )
+
+    provider = FakeMarketDataProvider(
+        assets=[
+            primary_asset,
+            Asset(
+                symbol="SUN.MX",
+                name="Schneider Electric S.E.",
+                exchange="Mexico",
+                currency="MXN",
+            ),
+        ],
+        primary_asset=primary_asset,
+    )
+
+    resolver = AssetResolver(
+        registry=registry,
+        fallback_provider=provider,
+    )
+
+    asset = resolver.resolve("Schneider Electric")
+
+    assert asset == primary_asset
+
+
+def test_resolver_filters_related_companies_before_primary_listing() -> None:
+    registry = AssetRegistry(
+        assets=[],
+    )
+
+    primary_asset = Asset(
+        symbol="SIE.DE",
+        name="Siemens Aktiengesellschaft",
+        exchange="XETRA",
+        currency="EUR",
+    )
+
+    provider = FakeMarketDataProvider(
+        assets=[
+            primary_asset,
+            Asset(
+                symbol="SHL.DE",
+                name="Siemens Healthineers AG",
+                exchange="XETRA",
+                currency="EUR",
+            ),
+            Asset(
+                symbol="SIEGY",
+                name="Siemens Aktiengesellschaft",
+                exchange="OTC Markets",
+                currency="USD",
+            ),
+            Asset(
+                symbol="ENR.DE",
+                name="Siemens Energy AG",
+                exchange="XETRA",
+                currency="EUR",
+            ),
+        ],
+        primary_asset=primary_asset,
+    )
+
+    resolver = AssetResolver(
+        registry=registry,
+        fallback_provider=provider,
+    )
+
+    asset = resolver.resolve("Siemens")
+
+    assert asset.symbol == "SIE.DE"
+
+    assert provider.primary_selection_assets is not None
+
+    assert {asset.symbol for asset in provider.primary_selection_assets} == {
+        "SIE.DE",
+        "SIEGY",
+    }

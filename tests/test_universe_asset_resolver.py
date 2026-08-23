@@ -32,13 +32,26 @@ class FakeMarketDataProvider:
 
         return []
 
+    def select_primary_asset(
+        self,
+        assets: list[Asset],
+    ) -> Asset | None:
+        if len(assets) == 1:
+            return assets[0]
+
+        return None
 
 def build_resolver() -> UniverseAssetResolver:
     registry = build_default_asset_registry()
+    provider = FakeMarketDataProvider()
+
+    asset_resolver = AssetResolver(
+        registry=registry,
+        fallback_provider=provider,
+    )
 
     return UniverseAssetResolver(
-        asset_resolver=AssetResolver(registry),
-        market_data_provider=FakeMarketDataProvider(),
+        asset_resolver=asset_resolver,
     )
 
 
@@ -130,3 +143,57 @@ def test_unknown_constituent_fails() -> None:
                 exchange="Unknown",
             )
         )
+
+
+def test_universe_resolver_retries_without_exchange_preference() -> None:
+    constituent = UniverseConstituent(
+        name="ArcelorMittal SA",
+        exchange="Paris",
+    )
+
+    class FakeAssetResolver:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def resolve(
+            self,
+            query: str,
+            preferred_currency=None,
+            preferred_exchange=None,
+        ) -> Asset:
+            self.calls.append(
+                (
+                    query,
+                    preferred_exchange,
+                )
+            )
+
+            if preferred_exchange is not None:
+                raise AssetNotFoundError("No matching preferred exchange")
+
+            return Asset(
+                symbol="MT.AS",
+                name="ArcelorMittal S.A.",
+                exchange="Amsterdam",
+                currency="EUR",
+            )
+
+    asset_resolver = FakeAssetResolver()
+
+    resolver = UniverseAssetResolver(
+        asset_resolver=asset_resolver,
+    )
+
+    asset = resolver.resolve(constituent)
+
+    assert asset.symbol == "MT.AS"
+
+    assert (
+        "ArcelorMittal SA",
+        "Paris",
+    ) in asset_resolver.calls
+
+    assert (
+        "ArcelorMittal SA",
+        None,
+    ) in asset_resolver.calls

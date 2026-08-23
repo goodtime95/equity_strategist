@@ -1,36 +1,57 @@
-from equity_strategist.data_providers.base import MarketDataProvider
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.universe_constituent import (
     UniverseConstituent,
 )
 from equity_strategist.tools.assets import AssetResolver
-from equity_strategist.tools.exceptions import AssetNotFoundError
+from equity_strategist.tools.exceptions import (
+    AmbiguousAssetError,
+    AssetNotFoundError,
+)
 
 
 class UniverseAssetResolver:
-    """Resolve universe constituents into usable Assets."""
+    """Resolve universe constituents into usable primary-listing assets."""
 
     def __init__(
         self,
         asset_resolver: AssetResolver,
-        market_data_provider: MarketDataProvider,
     ) -> None:
         self.asset_resolver = asset_resolver
-        self.market_data_provider = market_data_provider
 
     def resolve(
         self,
         constituent: UniverseConstituent,
     ) -> Asset:
-        asset = self._resolve_registered(constituent)
+        queries = self._build_queries(constituent)
 
-        if asset is not None:
-            return asset
+        # First try the universe metadata as a preference.
+        if constituent.exchange is not None:
+            for query in queries:
+                try:
+                    return self.asset_resolver.resolve(
+                        query=query,
+                        preferred_exchange=constituent.exchange,
+                    )
+                except (
+                    AssetNotFoundError,
+                    AmbiguousAssetError,
+                ):
+                    continue
 
-        asset = self._resolve_from_provider(constituent)
-
-        if asset is not None:
-            return asset
+        # Then retry without forcing the exchange.
+        #
+        # Universe membership does not imply that the
+        # primary listing is on the universe's local exchange.
+        for query in queries:
+            try:
+                return self.asset_resolver.resolve(
+                    query=query,
+                )
+            except (
+                AssetNotFoundError,
+                AmbiguousAssetError,
+            ):
+                continue
 
         raise AssetNotFoundError(
             f"Unable to resolve universe constituent: {constituent.name}"
@@ -42,10 +63,10 @@ class UniverseAssetResolver:
     ) -> tuple[Asset, ...]:
         return tuple(self.resolve(constituent) for constituent in constituents)
 
-    def _resolve_registered(
-        self,
+    @staticmethod
+    def _build_queries(
         constituent: UniverseConstituent,
-    ) -> Asset | None:
+    ) -> tuple[str, ...]:
         queries = []
 
         if constituent.isin:
@@ -56,48 +77,4 @@ class UniverseAssetResolver:
 
         queries.append(constituent.name)
 
-        for query in queries:
-            try:
-                return self.asset_resolver.resolve(
-                    query=query,
-                    preferred_exchange=constituent.exchange,
-                )
-            except AssetNotFoundError:
-                continue
-
-        return None
-
-    def _resolve_from_provider(
-        self,
-        constituent: UniverseConstituent,
-    ) -> Asset | None:
-        queries = [
-            constituent.name,
-            f"{constituent.name} Paris",
-        ]
-
-        for query in queries:
-            candidates = self.market_data_provider.search_assets(query)
-
-            paris_candidates = [
-                asset for asset in candidates if asset.symbol.endswith(".PA")
-            ]
-
-            if len(paris_candidates) == 1:
-                return paris_candidates[0]
-
-            if constituent.exchange is not None:
-                exchange_matches = [
-                    asset
-                    for asset in candidates
-                    if asset.exchange
-                    and constituent.exchange.casefold() in asset.exchange.casefold()
-                ]
-
-                if len(exchange_matches) == 1:
-                    return exchange_matches[0]
-
-            if len(candidates) == 1:
-                return candidates[0]
-
-        return None
+        return tuple(queries)

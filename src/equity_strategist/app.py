@@ -120,7 +120,6 @@ def _build_equity_pipeline(
 
     universe_asset_resolver = UniverseAssetResolver(
         asset_resolver=asset_resolver,
-        market_data_provider=provider,
     )
 
     planner = EquityPlanner()
