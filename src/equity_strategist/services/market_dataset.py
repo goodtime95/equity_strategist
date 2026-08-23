@@ -52,7 +52,7 @@ class MarketDatasetService:
         start_date: date,
         end_date: date,
         universe: str | None = None,
-        adjusted_close: bool = True,
+        use_adjusted_close: bool = True,
     ) -> MarketDataset:
         """Build a price dataset from already resolved assets."""
 
@@ -66,7 +66,7 @@ class MarketDatasetService:
                 asset=asset,
                 start_date=start_date,
                 end_date=end_date,
-                adjusted_close=adjusted_close,
+                use_adjusted_close=use_adjusted_close,
             )
 
             if price_series.identifier in series_by_symbol:

@@ -44,8 +44,6 @@ class AnalysisRequest:
     unresolved: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.assets and self.universe is None:
-            raise ValueError("at least one asset or universe is required")
 
         if (
             self.start_date is not None

@@ -59,7 +59,7 @@ class FakeMarketSeriesService:
         asset: Asset,
         start_date: date,
         end_date: date,
-        adjusted_close: bool = True,
+        use_adjusted_close: bool = True,
     ) -> MarketSeries:
         return MarketSeries(
             identifier=asset.symbol,

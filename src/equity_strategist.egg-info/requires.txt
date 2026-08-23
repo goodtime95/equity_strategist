@@ -1,7 +1,0 @@
-pandas>=2.2
-yfinance>=0.2
-openai>=1.0
-
-[dev]
-pytest
-ruff

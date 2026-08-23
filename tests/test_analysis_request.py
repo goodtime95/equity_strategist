@@ -23,15 +23,14 @@ def test_analysis_request() -> None:
     assert request.assets == ("LVMH", "Hermès")
 
 
-def test_analysis_request_requires_asset_or_universe() -> None:
-    with pytest.raises(
-        ValueError,
-        match="asset or universe",
-    ):
-        AnalysisRequest(
-            objective=AnalysisObjective.COMPARE,
-            metrics=(AnalysisMetric.VOLATILITY,),
-        )
+def test_analysis_request_allows_missing_asset_and_universe() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+    )
+
+    assert request.assets == ()
+    assert request.universe is None
 
 
 def test_analysis_request_accepts_universe_without_assets() -> None:

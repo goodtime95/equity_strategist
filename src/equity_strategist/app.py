@@ -11,8 +11,12 @@ from equity_strategist.services.drawdown_analysis import (
 from equity_strategist.services.market_dataset import (
     MarketDatasetService,
 )
-from equity_strategist.services.market_queries import MarketQueryService
-from equity_strategist.services.market_series import MarketSeriesService
+from equity_strategist.services.market_queries import (
+    MarketQueryService,
+)
+from equity_strategist.services.market_series import (
+    MarketSeriesService,
+)
 from equity_strategist.services.performance_analysis import (
     PerformanceAnalysisService,
 )
@@ -58,56 +62,54 @@ from equity_strategist.universe_registry.registry import (
 )
 
 
-def build_market_query_service() -> MarketQueryService:
-    """Build the market query service."""
-    provider = YahooFinanceProvider()
-    registry = build_default_asset_registry()
-    asset_resolver = AssetResolver(registry)
-    price_tool = PriceTool(provider)
-
-    return MarketQueryService(
-        asset_resolver=asset_resolver,
-        price_tool=price_tool,
-    )
-
-
-def build_market_series_service() -> MarketSeriesService:
-    """Build the market series service."""
-    provider = YahooFinanceProvider()
-    registry = build_default_asset_registry()
-    asset_resolver = AssetResolver(registry)
-
-    return MarketSeriesService(
-        provider=provider,
-        asset_resolver=asset_resolver,
-    )
-
-
-def build_volatility_analysis_service() -> VolatilityAnalysisService:
-    """Build the volatility analysis service."""
-    market_dataset_service = build_market_dataset_service()
-
-    return VolatilityAnalysisService(
-        market_dataset_service=market_dataset_service,
-    )
-
-
-def build_market_dataset_service() -> MarketDatasetService:
-    """Build the market dataset service."""
-    market_series_service = build_market_series_service()
-
-    return MarketDatasetService(
-        market_series_service=market_series_service,
-    )
-
-
 def _build_equity_pipeline(
     understanding: UnderstandingProvider,
     universe_registry: UniverseRegistry,
 ) -> EquityStrategist:
-    """Build the shared Equity Strategist pipeline."""
+    """Build the shared Equity Strategist dependency graph."""
 
-    planner = EquityPlanner()
+    provider = YahooFinanceProvider()
+
+    asset_registry = build_default_asset_registry()
+
+    asset_resolver = AssetResolver(
+        registry=asset_registry,
+        fallback_provider=provider,
+    )
+
+    market_series_service = MarketSeriesService(
+        provider=provider,
+        asset_resolver=asset_resolver,
+    )
+
+    market_dataset_service = MarketDatasetService(
+        market_series_service=market_series_service,
+    )
+
+    market_query_service = MarketQueryService(
+        asset_resolver=asset_resolver,
+        price_tool=PriceTool(provider),
+    )
+
+    performance_analysis_service = PerformanceAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
+
+    volatility_analysis_service = VolatilityAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
+
+    correlation_analysis_service = CorrelationAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
+
+    drawdown_analysis_service = DrawdownAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
+
+    ranking_analysis_service = RankingAnalysisService(
+        market_dataset_service=market_dataset_service,
+    )
 
     universe_constituent_service = UniverseConstituentService(
         universe_registry=universe_registry,
@@ -117,17 +119,19 @@ def _build_equity_pipeline(
     )
 
     universe_asset_resolver = UniverseAssetResolver(
-        asset_resolver=AssetResolver(build_default_asset_registry()),
-        market_data_provider=YahooFinanceProvider(),
+        asset_resolver=asset_resolver,
+        market_data_provider=provider,
     )
 
+    planner = EquityPlanner()
+
     executor = EquityExecutor(
-        volatility_analysis_service=(build_volatility_analysis_service()),
-        performance_analysis_service=(build_performance_analysis_service()),
-        correlation_analysis_service=(build_correlation_analysis_service()),
-        drawdown_analysis_service=(build_drawdown_analysis_service()),
-        ranking_analysis_service=(build_ranking_analysis_service()),
-        market_query_service=build_market_query_service(),
+        volatility_analysis_service=(volatility_analysis_service),
+        performance_analysis_service=(performance_analysis_service),
+        correlation_analysis_service=(correlation_analysis_service),
+        drawdown_analysis_service=(drawdown_analysis_service),
+        ranking_analysis_service=(ranking_analysis_service),
+        market_query_service=market_query_service,
         universe_constituent_service=(universe_constituent_service),
         universe_asset_resolver=(universe_asset_resolver),
     )
@@ -161,30 +165,4 @@ def build_llm_equity_strategist() -> EquityStrategist:
     return _build_equity_pipeline(
         understanding=LLMUnderstanding(),
         universe_registry=universe_registry,
-    )
-
-
-def build_performance_analysis_service() -> PerformanceAnalysisService:
-    market_dataset_service = build_market_dataset_service()
-
-    return PerformanceAnalysisService(
-        market_dataset_service=market_dataset_service,
-    )
-
-
-def build_correlation_analysis_service() -> CorrelationAnalysisService:
-    return CorrelationAnalysisService(
-        market_dataset_service=build_market_dataset_service(),
-    )
-
-
-def build_drawdown_analysis_service() -> DrawdownAnalysisService:
-    return DrawdownAnalysisService(
-        market_dataset_service=build_market_dataset_service(),
-    )
-
-
-def build_ranking_analysis_service() -> RankingAnalysisService:
-    return RankingAnalysisService(
-        market_dataset_service=build_market_dataset_service(),
     )

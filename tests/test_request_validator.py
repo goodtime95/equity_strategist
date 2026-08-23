@@ -134,3 +134,19 @@ def test_universe_volatility_ranking_is_unsupported() -> None:
     result = AnalysisRequestValidator().validate(request)
 
     assert result.status == RequestStatus.UNSUPPORTED
+
+
+def test_missing_assets_and_universe_needs_clarification() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        unresolved=("The assets to compare are not specified.",),
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+
+    assert any("asset or universe" in issue for issue in result.issues)

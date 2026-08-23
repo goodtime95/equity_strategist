@@ -55,6 +55,9 @@ class AnalysisRequestValidator:
     ) -> list[str]:
         issues = list(request.unresolved)
 
+        if not request.assets and request.universe is None:
+            issues.append("at least one asset or universe is required")
+
         if not request.metrics:
             issues.append("at least one analysis metric is required")
 
@@ -76,11 +79,16 @@ class AnalysisRequestValidator:
                 AnalysisObjective.RANK,
             }
             and request.universe is None
+            and request.assets
             and len(request.assets) < 2
         ):
             issues.append("at least two assets are required")
 
-        if AnalysisMetric.CORRELATION in request.metrics and len(request.assets) < 2:
+        if (
+            AnalysisMetric.CORRELATION in request.metrics
+            and request.assets
+            and len(request.assets) < 2
+        ):
             issues.append("correlation requires at least two assets")
 
         return issues
