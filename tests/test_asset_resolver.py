@@ -13,14 +13,22 @@ class FakeMarketDataProvider:
     def __init__(
         self,
         assets: list[Asset],
+        primary_asset: Asset | None = None,
     ) -> None:
         self.assets = assets
+        self.primary_asset = primary_asset
 
     def search_assets(
         self,
         query: str,
     ) -> list[Asset]:
         return self.assets
+
+    def select_primary_asset(
+        self,
+        assets: list[Asset],
+    ) -> Asset | None:
+        return self.primary_asset
 
 
 def build_registry() -> AssetRegistry:

@@ -7,12 +7,26 @@ from equity_strategist.domain.observations import (
 )
 
 
-class MarketDataProvider(Protocol):
-    """Contract implemented by external market-data providers."""
+class AssetSearchProvider(Protocol):
+    """Contract for external asset discovery and listing resolution."""
 
-    def search_assets(self, query: str) -> list[Asset]:
+    def search_assets(
+        self,
+        query: str,
+    ) -> list[Asset]:
         """Find assets matching a company name or ticker."""
         ...
+
+    def select_primary_asset(
+        self,
+        assets: list[Asset],
+    ) -> Asset | None:
+        """Return a primary listing when it can be identified reliably."""
+        ...
+
+
+class MarketDataProvider(Protocol):
+    """Contract for external market-data retrieval."""
 
     def get_daily_prices(
         self,

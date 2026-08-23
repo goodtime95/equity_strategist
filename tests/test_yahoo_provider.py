@@ -81,3 +81,134 @@ def test_start_date_must_precede_end_date() -> None:
         assert str(exc) == ("start_date must be before or equal to end_date")
     else:
         raise AssertionError("ValueError was not raised")
+
+
+def test_primary_listing_score_prefers_home_market() -> None:
+    score = YahooFinanceProvider._primary_listing_score(
+        country="France",
+        market="fr_market",
+    )
+
+    assert score == 100
+
+
+def test_primary_listing_score_penalizes_foreign_us_listing() -> None:
+    score = YahooFinanceProvider._primary_listing_score(
+        country="France",
+        market="us_market",
+    )
+
+    assert score == -30
+
+
+def test_primary_listing_score_penalizes_depositary_receipt_market() -> None:
+    score = YahooFinanceProvider._primary_listing_score(
+        country=None,
+        market="dr_market",
+    )
+
+    assert score == -50
+
+
+def test_primary_listing_score_accepts_us_company_on_us_market() -> None:
+    score = YahooFinanceProvider._primary_listing_score(
+        country="United States",
+        market="us_market",
+    )
+
+    assert score == 100
+
+
+def test_select_primary_asset_prefers_home_listing(
+    monkeypatch,
+) -> None:
+    assets = [
+        Asset(
+            symbol="TTE",
+            name="TotalEnergies SE",
+        ),
+        Asset(
+            symbol="TTE.PA",
+            name="TotalEnergies SE",
+        ),
+    ]
+
+    infos = {
+        "TTE": {
+            "country": "France",
+            "market": "us_market",
+        },
+        "TTE.PA": {
+            "country": "France",
+            "market": "fr_market",
+        },
+    }
+
+    class FakeTicker:
+        def __init__(
+            self,
+            symbol: str,
+        ) -> None:
+            self.symbol = symbol
+
+        def get_info(self):
+            return infos[self.symbol]
+
+    monkeypatch.setattr(
+        "equity_strategist.data_providers.yahoo.yf.Ticker",
+        FakeTicker,
+    )
+
+    provider = YahooFinanceProvider()
+
+    primary_asset = provider.select_primary_asset(assets)
+
+    assert primary_asset is not None
+    assert primary_asset.symbol == "TTE.PA"
+
+
+def test_select_primary_asset_returns_none_when_no_candidate_dominates(
+    monkeypatch,
+) -> None:
+    assets = [
+        Asset(
+            symbol="ABC.PA",
+            name="ABC",
+        ),
+        Asset(
+            symbol="ABC.L",
+            name="ABC",
+        ),
+    ]
+
+    infos = {
+        "ABC.PA": {
+            "country": None,
+            "market": None,
+        },
+        "ABC.L": {
+            "country": None,
+            "market": None,
+        },
+    }
+
+    class FakeTicker:
+        def __init__(
+            self,
+            symbol: str,
+        ) -> None:
+            self.symbol = symbol
+
+        def get_info(self):
+            return infos[self.symbol]
+
+    monkeypatch.setattr(
+        "equity_strategist.data_providers.yahoo.yf.Ticker",
+        FakeTicker,
+    )
+
+    provider = YahooFinanceProvider()
+
+    primary_asset = provider.select_primary_asset(assets)
+
+    assert primary_asset is None

@@ -8,6 +8,16 @@ import yfinance as yf
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.observations import DailyPriceObservation
 
+HOME_MARKETS = {
+    "France": {"fr_market"},
+    "Germany": {"de_market"},
+    "Netherlands": {"nl_market"},
+    "Italy": {"it_market"},
+    "Spain": {"es_market"},
+    "United Kingdom": {"gb_market", "uk_market"},
+    "United States": {"us_market"},
+}
+
 
 class YahooFinanceProvider:
     """Market-data provider backed by Yahoo Finance."""
@@ -63,6 +73,75 @@ class YahooFinanceProvider:
             self._row_to_observation(asset, index, row)
             for index, row in history.iterrows()
         ]
+
+    def select_primary_asset(
+        self,
+        assets: list[Asset],
+    ) -> Asset | None:
+        scored_assets = []
+
+        for asset in assets:
+            ticker = yf.Ticker(asset.symbol)
+            info = ticker.get_info()
+
+            score = self._primary_listing_score(
+                country=info.get("country"),
+                market=info.get("market"),
+            )
+
+            scored_assets.append(
+                (
+                    score,
+                    asset,
+                )
+            )
+
+        scored_assets.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+
+        if not scored_assets:
+            return None
+
+        best_score, best_asset = scored_assets[0]
+
+        if len(scored_assets) == 1:
+            return best_asset
+
+        second_score = scored_assets[1][0]
+
+        if best_score >= 100 and best_score > second_score:
+            return best_asset
+
+        return None
+
+    @staticmethod
+    def _primary_listing_score(
+        country: str | None,
+        market: str | None,
+    ) -> int:
+        score = 0
+
+        if country and market:
+            home_markets = HOME_MARKETS.get(
+                country,
+                set(),
+            )
+
+            if market in home_markets:
+                score += 100
+
+        if market == "dr_market":
+            score -= 50
+
+        if market == "us_market" and country not in {
+            None,
+            "United States",
+        }:
+            score -= 30
+
+        return score
 
     @staticmethod
     def _quote_to_asset(quote: dict[str, Any]) -> Asset | None:

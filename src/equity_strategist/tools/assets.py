@@ -2,7 +2,9 @@ import re
 import unicodedata
 
 from equity_strategist.asset_registry.registry import AssetRegistry
-from equity_strategist.data_providers.base import MarketDataProvider
+from equity_strategist.data_providers.base import (
+    AssetSearchProvider,
+)
 from equity_strategist.domain.asset import Asset
 from equity_strategist.tools.exceptions import (
     AmbiguousAssetError,
@@ -16,7 +18,7 @@ class AssetResolver:
     def __init__(
         self,
         registry: AssetRegistry,
-        fallback_provider: MarketDataProvider | None = None,
+        fallback_provider: AssetSearchProvider | None = None,
     ) -> None:
         self.registry = registry
         self.fallback_provider = fallback_provider
@@ -64,6 +66,14 @@ class AssetResolver:
 
         if not fallback_assets:
             raise AssetNotFoundError(f"No asset found for query: {clean_query}")
+
+        if len(fallback_assets) == 1:
+            return fallback_assets[0]
+
+        primary_asset = self.fallback_provider.select_primary_asset(fallback_assets)
+
+        if primary_asset is not None:
+            return primary_asset
 
         return self._select_external_asset(
             query=clean_query,
