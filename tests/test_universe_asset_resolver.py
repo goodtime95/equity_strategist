@@ -41,6 +41,7 @@ class FakeMarketDataProvider:
 
         return None
 
+
 def build_resolver() -> UniverseAssetResolver:
     registry = build_default_asset_registry()
     provider = FakeMarketDataProvider()

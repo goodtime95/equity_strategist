@@ -7,6 +7,9 @@ from equity_strategist.domain.analysis_plan import Capability
 from equity_strategist.domain.request_validation import (
     RequestStatus,
 )
+from equity_strategist.strategists.graph import (
+    EquityStrategistGraph,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,7 +139,7 @@ CASES = (
 
 
 def run_case(
-    strategist,
+    graph: EquityStrategistGraph,
     case: E2ECase,
 ) -> tuple[bool, str]:
     print()
@@ -149,26 +152,29 @@ def run_case(
     print()
 
     try:
-        request = strategist.understand(case.question)
+        state = graph.invoke(case.question)
     except Exception as exc:
-        print("UNDERSTANDING ERROR:")
+        print("GRAPH ERROR:")
         print(f"{type(exc).__name__}: {exc}")
-        return False, "understanding"
+        return False, "graph"
+
+    request = state.get("request")
+    validation = state.get("validation")
+    plan = state.get("plan")
+    execution = state.get("execution")
+    answer = state.get("answer")
 
     print("Understanding:")
     print(request)
     print()
 
-    try:
-        validation = strategist.validator.validate(request)
-    except Exception as exc:
-        print("VALIDATION ERROR:")
-        print(f"{type(exc).__name__}: {exc}")
-        return False, "validation"
-
     print("Validation:")
     print(validation)
     print()
+
+    if validation is None:
+        print("EXPECTATION FAILURE: graph returned no validation")
+        return False, "validation"
 
     if validation.status != case.expected_status:
         print(
@@ -179,28 +185,47 @@ def run_case(
         return False, "status"
 
     if not validation.is_ready:
-        answer = strategist.answer_request(request)
+        if plan is not None:
+            print(
+                "EXPECTATION FAILURE: "
+                "non-ready request should not have a plan"
+            )
+            return False, "routing"
+
+        if execution is not None:
+            print(
+                "EXPECTATION FAILURE: "
+                "non-ready request should not have execution"
+            )
+            return False, "routing"
 
         print("Answer:")
         print(answer)
 
         return True, "validation_stop"
 
-    try:
-        plan = strategist.planner.plan(request)
-    except Exception as exc:
-        print("PLANNING ERROR:")
-        print(f"{type(exc).__name__}: {exc}")
+    if plan is None:
+        print(
+            "EXPECTATION FAILURE: "
+            "ready request should have a plan"
+        )
         return False, "planning"
 
-    actual_capabilities = tuple(step.capability for step in plan.steps)
+    actual_capabilities = tuple(
+        step.capability
+        for step in plan.steps
+    )
 
     print("Plan:")
     for capability in actual_capabilities:
         print(f"- {capability.value}")
     print()
 
-    if case.expected_capabilities and actual_capabilities != case.expected_capabilities:
+    if (
+        case.expected_capabilities
+        and actual_capabilities
+        != case.expected_capabilities
+    ):
         print(
             "EXPECTATION FAILURE: "
             f"expected capabilities="
@@ -210,18 +235,18 @@ def run_case(
         )
         return False, "capabilities"
 
-    try:
-        execution = strategist.executor.execute(plan)
-    except Exception as exc:
-        print("EXECUTION ERROR:")
-        print(f"{type(exc).__name__}: {exc}")
+    if execution is None:
+        print(
+            "EXPECTATION FAILURE: "
+            "ready request should have execution"
+        )
         return False, "execution"
 
-    try:
-        answer = strategist.interpret(execution)
-    except Exception as exc:
-        print("INTERPRETATION ERROR:")
-        print(f"{type(exc).__name__}: {exc}")
+    if answer is None:
+        print(
+            "EXPECTATION FAILURE: "
+            "graph returned no answer"
+        )
         return False, "interpretation"
 
     print("Answer:")
@@ -232,12 +257,15 @@ def run_case(
 
 def main() -> None:
     strategist = build_llm_equity_strategist()
+    graph = EquityStrategistGraph(
+    strategist=strategist,
+)
 
     results = []
 
     for case in CASES:
         passed, stage = run_case(
-            strategist=strategist,
+            graph=graph,
             case=case,
         )
 
