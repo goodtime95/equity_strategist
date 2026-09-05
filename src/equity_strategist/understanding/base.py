@@ -10,3 +10,9 @@ class UnderstandingProvider(Protocol):
         self,
         question: str,
     ) -> AnalysisRequest: ...
+
+    def refine(
+        self,
+        previous_request: AnalysisRequest,
+        clarification: str,
+    ) -> AnalysisRequest: ...

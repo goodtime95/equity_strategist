@@ -134,6 +134,79 @@ class LLMUnderstanding:
             unresolved=tuple(payload["unresolved"]),
         )
 
+    def refine(
+        self,
+        previous_request: AnalysisRequest,
+        clarification: str,
+    ) -> AnalysisRequest:
+        if not clarification.strip():
+            raise ValueError("clarification cannot be empty")
+
+        today = date.today()
+
+        previous_request_payload = {
+            "objective": previous_request.objective.value,
+            "metrics": [metric.value for metric in previous_request.metrics],
+            "assets": list(previous_request.assets),
+            "universe": previous_request.universe,
+            "start_date": (
+                previous_request.start_date.isoformat()
+                if previous_request.start_date is not None
+                else None
+            ),
+            "end_date": (
+                previous_request.end_date.isoformat()
+                if previous_request.end_date is not None
+                else None
+            ),
+            "target_date": (
+                previous_request.target_date.isoformat()
+                if previous_request.target_date is not None
+                else None
+            ),
+            "benchmark": previous_request.benchmark,
+            "constraints": list(previous_request.constraints),
+            "unresolved": list(previous_request.unresolved),
+        }
+
+        input_payload = {
+            "previous_request": previous_request_payload,
+            "clarification": clarification,
+        }
+
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=self._build_refinement_instructions(today),
+            input=json.dumps(
+                input_payload,
+                ensure_ascii=False,
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "equity_analysis_request",
+                    "strict": True,
+                    "schema": ANALYSIS_REQUEST_SCHEMA,
+                }
+            },
+        )
+
+        payload = json.loads(response.output_text)
+
+        return AnalysisRequest(
+            objective=AnalysisObjective(payload["objective"]),
+            metrics=tuple(AnalysisMetric(metric) for metric in payload["metrics"]),
+            assets=tuple(payload["assets"]),
+            universe=payload["universe"],
+            start_date=self._parse_date(payload["start_date"]),
+            end_date=self._parse_date(payload["end_date"]),
+            target_date=self._parse_date(payload["target_date"]),
+            benchmark=payload["benchmark"],
+            constraints=tuple(payload["constraints"]),
+            user_context=clarification,
+            unresolved=tuple(payload["unresolved"]),
+        )
+
     @staticmethod
     def _parse_date(
         value: str | None,
@@ -279,3 +352,84 @@ Entity extraction rules:
   the understanding layer.
 
 """.strip()
+
+    @staticmethod
+    def _build_refinement_instructions(
+        today: date,
+    ) -> str:
+        return f"""
+    You are the clarification layer of an equity quantitative
+    analysis system.
+
+    Today is {today.isoformat()}.
+
+    You receive:
+    1. a previous structured AnalysisRequest,
+    2. a new user clarification.
+
+    Your task is to return the updated AnalysisRequest.
+
+    Rules:
+
+    1. Preserve all valid information from the previous request unless
+    the clarification explicitly changes it.
+
+    2. Use the clarification only to resolve, complete or modify the
+    previous request.
+
+    3. Do not treat the clarification as a completely new standalone
+    question unless it clearly replaces the previous request.
+
+    4. Remove an item from unresolved once the clarification resolves it.
+
+    5. Keep unresolved items that remain ambiguous or unanswered.
+
+    6. If the clarification introduces another supported metric, add it
+    to the existing metrics rather than discarding previously requested
+    metrics unless the user explicitly asks to replace them.
+
+    7. Preserve assets, universe, dates, benchmark and constraints unless
+    the clarification explicitly changes them.
+
+    8. Do not perform financial calculations.
+
+    9. Do not answer the user.
+
+    10. Do not invent missing information.
+
+    Supported objectives:
+    - get
+    - compare
+    - rank
+    - analyze
+
+    Supported metrics:
+    - price
+    - performance
+    - volatility
+    - correlation
+    - drawdown
+
+    Example:
+
+    Previous request:
+    objective = compare
+    metrics = [performance]
+    assets = [Schneider Electric, Safran]
+    unresolved = [
+    "risk is ambiguous between volatility and drawdown"
+    ]
+
+    Clarification:
+    "Volatility"
+
+    Updated request:
+    objective = compare
+    metrics = [performance, volatility]
+    assets = [Schneider Electric, Safran]
+    unresolved = []
+
+    The previous structured request is authoritative context.
+    The clarification should refine it, not rebuild the analysis from
+    scratch.
+    """.strip()

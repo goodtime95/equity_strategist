@@ -1,5 +1,6 @@
 from typing import Literal
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from equity_strategist.domain.request_validation import RequestStatus
@@ -19,6 +20,7 @@ class EquityStrategistGraph:
         strategist: EquityStrategist,
     ) -> None:
         self.strategist = strategist
+        self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -84,23 +86,42 @@ class EquityStrategistGraph:
             END,
         )
 
-        return builder.compile()
+        return builder.compile(checkpointer=self.checkpointer)
 
     def invoke(
         self,
         question: str,
+        thread_id: str = "default",
     ) -> EquityGraphState:
         return self.graph.invoke(
             {
                 "question": question,
-            }
+            },
+            config={
+                "configurable": {
+                    "thread_id": thread_id,
+                }
+            },
         )
 
     def _understand(
         self,
         state: EquityGraphState,
     ) -> dict:
-        request = self.strategist.understand(state["question"])
+        previous_request = state.get("request")
+        previous_validation = state.get("validation")
+
+        if (
+            previous_request is not None
+            and previous_validation is not None
+            and previous_validation.status == RequestStatus.NEEDS_CLARIFICATION
+        ):
+            request = self.strategist.refine(
+                previous_request=previous_request,
+                clarification=state["question"],
+            )
+        else:
+            request = self.strategist.understand(state["question"])
 
         return {
             "request": request,

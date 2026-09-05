@@ -186,17 +186,11 @@ def run_case(
 
     if not validation.is_ready:
         if plan is not None:
-            print(
-                "EXPECTATION FAILURE: "
-                "non-ready request should not have a plan"
-            )
+            print("EXPECTATION FAILURE: non-ready request should not have a plan")
             return False, "routing"
 
         if execution is not None:
-            print(
-                "EXPECTATION FAILURE: "
-                "non-ready request should not have execution"
-            )
+            print("EXPECTATION FAILURE: non-ready request should not have execution")
             return False, "routing"
 
         print("Answer:")
@@ -205,27 +199,17 @@ def run_case(
         return True, "validation_stop"
 
     if plan is None:
-        print(
-            "EXPECTATION FAILURE: "
-            "ready request should have a plan"
-        )
+        print("EXPECTATION FAILURE: ready request should have a plan")
         return False, "planning"
 
-    actual_capabilities = tuple(
-        step.capability
-        for step in plan.steps
-    )
+    actual_capabilities = tuple(step.capability for step in plan.steps)
 
     print("Plan:")
     for capability in actual_capabilities:
         print(f"- {capability.value}")
     print()
 
-    if (
-        case.expected_capabilities
-        and actual_capabilities
-        != case.expected_capabilities
-    ):
+    if case.expected_capabilities and actual_capabilities != case.expected_capabilities:
         print(
             "EXPECTATION FAILURE: "
             f"expected capabilities="
@@ -236,17 +220,11 @@ def run_case(
         return False, "capabilities"
 
     if execution is None:
-        print(
-            "EXPECTATION FAILURE: "
-            "ready request should have execution"
-        )
+        print("EXPECTATION FAILURE: ready request should have execution")
         return False, "execution"
 
     if answer is None:
-        print(
-            "EXPECTATION FAILURE: "
-            "graph returned no answer"
-        )
+        print("EXPECTATION FAILURE: graph returned no answer")
         return False, "interpretation"
 
     print("Answer:")
@@ -258,8 +236,8 @@ def run_case(
 def main() -> None:
     strategist = build_llm_equity_strategist()
     graph = EquityStrategistGraph(
-    strategist=strategist,
-)
+        strategist=strategist,
+    )
 
     results = []
 

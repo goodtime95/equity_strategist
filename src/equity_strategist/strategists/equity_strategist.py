@@ -89,6 +89,17 @@ class EquityStrategist:
 
         return "\n\n".join(sections)
 
+    def refine(
+        self,
+        previous_request: AnalysisRequest,
+        clarification: str,
+    ) -> AnalysisRequest:
+        """Refine a previous request using a user clarification."""
+        return self.understanding.refine(
+            previous_request=previous_request,
+            clarification=clarification,
+        )
+
     def _interpret_step(
         self,
         result: object,
