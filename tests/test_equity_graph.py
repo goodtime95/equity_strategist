@@ -264,44 +264,56 @@ def test_graph_stops_when_clarification_is_needed() -> None:
     assert "execution" not in result
     assert result["answer"] == "validation stopped"
 
+    def test_graph_persists_state_by_thread_id() -> None:
+        graph = EquityStrategistGraph(
+            strategist=FakeStrategist(),
+        )
 
-def test_graph_persists_state_by_thread_id() -> None:
-    graph = EquityStrategistGraph(
-        strategist=FakeStrategist(),
-    )
+        first_result = graph.invoke(
+            "Compare LVMH et Hermès.",
+            thread_id="thread-1",
+        )
 
-    first_result = graph.invoke(
-        "Compare LVMH et Hermès.",
-        thread_id="thread-1",
-    )
-
-    saved_state = graph.graph.get_state(
-        {
-            "configurable": {
-                "thread_id": "thread-1",
+        saved_state = graph.graph.get_state(
+            {
+                "configurable": {
+                    "thread_id": "thread-1",
+                }
             }
-        }
-    )
+        )
 
-    assert first_result["answer"] == "fake answer"
+        assert first_result["answer"] == "fake answer"
 
-    assert saved_state.values["question"] == "Compare LVMH et Hermès."
+        assert saved_state.values["question"] == "Compare LVMH et Hermès."
 
-    saved_request = saved_state.values["request"]
-    first_request = first_result["request"]
+        saved_request = saved_state.values["request"]
+        first_request = first_result["request"]
 
-    assert saved_request.objective == first_request.objective
-    assert tuple(saved_request.metrics) == first_request.metrics
-    assert tuple(saved_request.assets) == first_request.assets
-    assert saved_request.start_date == first_request.start_date
-    assert saved_request.end_date == first_request.end_date
-    assert saved_request.universe == first_request.universe
+        assert saved_request["objective"] == first_request.objective.value
+        assert saved_request["metrics"] == [
+            metric.value for metric in first_request.metrics
+        ]
+        assert saved_request["assets"] == list(first_request.assets)
+        assert saved_request["start_date"] == (
+            first_request.start_date.isoformat()
+            if first_request.start_date is not None
+            else None
+        )
+        assert saved_request["end_date"] == (
+            first_request.end_date.isoformat()
+            if first_request.end_date is not None
+            else None
+        )
+        assert saved_request["universe"] == first_request.universe
 
-    saved_validation = saved_state.values["validation"]
-    first_validation = first_result["validation"]
+        saved_validation = saved_state.values["validation"]
+        first_validation = first_result["validation"]
 
-    assert saved_validation.status == first_validation.status
-    assert tuple(saved_validation.issues) == first_validation.issues
+        assert saved_validation["status"] == first_validation.status.value
+        assert saved_validation["issues"] == list(first_validation.issues)
+
+        assert "plan" not in saved_state.values
+        assert "execution" not in saved_state.values
 
 
 def test_graph_keeps_threads_isolated() -> None:

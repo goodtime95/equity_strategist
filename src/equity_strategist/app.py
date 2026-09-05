@@ -2,6 +2,9 @@ from equity_strategist.asset_registry import (
     build_default_asset_registry,
 )
 from equity_strategist.data_providers.yahoo import YahooFinanceProvider
+from equity_strategist.interpretation.deterministic import (
+    DeterministicInterpretation,
+)
 from equity_strategist.services.correlation_analysis import (
     CorrelationAnalysisService,
 )
@@ -140,6 +143,7 @@ def _build_equity_pipeline(
         planner=planner,
         executor=executor,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
 

@@ -3,12 +3,19 @@ from typing import Literal
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from equity_strategist.domain.request_validation import RequestStatus
+from equity_strategist.domain.request_validation import (
+    RequestStatus,
+)
 from equity_strategist.strategists.equity_strategist import (
     EquityStrategist,
 )
 from equity_strategist.strategists.graph_state import (
+    EquityGraphResult,
     EquityGraphState,
+    analysis_request_from_state,
+    analysis_request_to_state,
+    validation_from_state,
+    validation_to_state,
 )
 
 
@@ -92,8 +99,8 @@ class EquityStrategistGraph:
         self,
         question: str,
         thread_id: str = "default",
-    ) -> EquityGraphState:
-        return self.graph.invoke(
+    ) -> EquityGraphResult:
+        state = self.graph.invoke(
             {
                 "question": question,
             },
@@ -104,46 +111,71 @@ class EquityStrategistGraph:
             },
         )
 
+        result: EquityGraphResult = {
+            "question": state["question"],
+        }
+
+        if "request" in state:
+            result["request"] = analysis_request_from_state(state["request"])
+
+        if "validation" in state:
+            result["validation"] = validation_from_state(state["validation"])
+
+        if "plan" in state:
+            result["plan"] = state["plan"]
+
+        if "execution" in state:
+            result["execution"] = state["execution"]
+
+        if "answer" in state:
+            result["answer"] = state["answer"]
+
+        return result
+
     def _understand(
         self,
         state: EquityGraphState,
     ) -> dict:
-        previous_request = state.get("request")
-        previous_validation = state.get("validation")
+        previous_request_data = state.get("request")
+        previous_validation_data = state.get("validation")
 
         if (
-            previous_request is not None
-            and previous_validation is not None
-            and previous_validation.status == RequestStatus.NEEDS_CLARIFICATION
+            previous_request_data is not None
+            and previous_validation_data is not None
+            and previous_validation_data["status"]
+            == RequestStatus.NEEDS_CLARIFICATION.value
         ):
+            previous_request = analysis_request_from_state(previous_request_data)
+
             request = self.strategist.refine(
                 previous_request=previous_request,
                 clarification=state["question"],
             )
+
         else:
             request = self.strategist.understand(state["question"])
 
         return {
-            "request": request,
+            "request": analysis_request_to_state(request),
         }
 
     def _validate(
         self,
         state: EquityGraphState,
     ) -> dict:
-        validation = self.strategist.validator.validate(state["request"])
+        request = analysis_request_from_state(state["request"])
+
+        validation = self.strategist.validator.validate(request)
 
         return {
-            "validation": validation,
+            "validation": validation_to_state(validation),
         }
 
     @staticmethod
     def _route_after_validation(
         state: EquityGraphState,
     ) -> Literal["ready", "stop"]:
-        validation = state["validation"]
-
-        if validation.status == RequestStatus.READY:
+        if state["validation"]["status"] == RequestStatus.READY.value:
             return "ready"
 
         return "stop"
@@ -152,7 +184,9 @@ class EquityStrategistGraph:
         self,
         state: EquityGraphState,
     ) -> dict:
-        plan = self.strategist.planner.plan(state["request"])
+        request = analysis_request_from_state(state["request"])
+
+        plan = self.strategist.planner.plan(request)
 
         return {
             "plan": plan,
@@ -182,7 +216,9 @@ class EquityStrategistGraph:
         self,
         state: EquityGraphState,
     ) -> dict:
-        answer = self.strategist._interpret_validation(state["validation"])
+        validation = validation_from_state(state["validation"])
+
+        answer = self.strategist._interpret_validation(validation)
 
         return {
             "answer": answer,

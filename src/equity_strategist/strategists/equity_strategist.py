@@ -4,18 +4,10 @@ from equity_strategist.domain.analysis_execution import (
 from equity_strategist.domain.analysis_request import (
     AnalysisRequest,
 )
-from equity_strategist.domain.analysis_results import (
-    CorrelationAnalysisResult,
-    DrawdownComparisonResult,
-    PerformanceComparisonResult,
-    RankingResult,
-    VolatilityComparisonResult,
-)
 from equity_strategist.domain.request_validation import (
-    RequestStatus,
     RequestValidationResult,
 )
-from equity_strategist.domain.results import PriceOnDateResult
+from equity_strategist.interpretation.base import InterpretationProvider
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.strategists.validator import (
@@ -35,11 +27,13 @@ class EquityStrategist:
         planner: EquityPlanner,
         executor: EquityExecutor,
         validator: AnalysisRequestValidator,
+        interpretation: InterpretationProvider,
     ) -> None:
         self.understanding = understanding
         self.planner = planner
         self.executor = executor
         self.validator = validator
+        self.interpretation = interpretation
 
     def answer(
         self,
@@ -78,17 +72,6 @@ class EquityStrategist:
         """Convert natural language into a structured request."""
         return self.understanding.understand(question)
 
-    def interpret(
-        self,
-        execution: AnalysisExecutionResult,
-    ) -> str:
-        sections = tuple(
-            self._interpret_step(step_result.result)
-            for step_result in execution.step_results
-        )
-
-        return "\n\n".join(sections)
-
     def refine(
         self,
         previous_request: AnalysisRequest,
@@ -100,184 +83,14 @@ class EquityStrategist:
             clarification=clarification,
         )
 
-    def _interpret_step(
+    def interpret(
         self,
-        result: object,
+        execution: AnalysisExecutionResult,
     ) -> str:
-        """Convert one structured result into readable text."""
+        return self.interpretation.interpret(execution)
 
-        if isinstance(result, VolatilityComparisonResult):
-            return self._interpret_volatility(result)
-
-        if isinstance(result, PriceOnDateResult):
-            return self._interpret_price(result)
-
-        if isinstance(result, PerformanceComparisonResult):
-            return self._interpret_performance(result)
-
-        if isinstance(result, CorrelationAnalysisResult):
-            return self._interpret_correlation(result)
-
-        if isinstance(result, DrawdownComparisonResult):
-            return self._interpret_drawdown(result)
-
-        if isinstance(result, RankingResult):
-            return self._interpret_ranking(result)
-
-        raise ValueError(f"unsupported execution result: {type(result).__name__}")
-
-    @staticmethod
-    def _interpret_volatility(
-        result: VolatilityComparisonResult,
-    ) -> str:
-        lines = [
-            (
-                "Historical volatility comparison "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
-
-        for rank, item in enumerate(
-            result.items,
-            start=1,
-        ):
-            name = item.name or item.symbol
-
-            lines.append(f"{rank}. {name} ({item.symbol}): {item.volatility:.2%}")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _interpret_price(
-        result: PriceOnDateResult,
-    ) -> str:
-        name = result.asset.name or result.asset.symbol
-
-        answer = (
-            f"{name} ({result.asset.symbol}) was "
-            f"{result.price} {result.asset.currency or ''} "
-            f"on {result.effective_date}."
-        )
-
-        if result.used_previous_session:
-            answer += (
-                f" The requested date was {result.requested_date}, "
-                "so the previous available trading session was used."
-            )
-
-        return answer
-
-    @staticmethod
-    def _interpret_performance(
-        result: PerformanceComparisonResult,
-    ) -> str:
-        lines = [
-            (
-                "Historical performance comparison "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
-
-        for rank, item in enumerate(
-            result.items,
-            start=1,
-        ):
-            name = item.name or item.symbol
-
-            lines.append(f"{rank}. {name} ({item.symbol}): {item.performance:.2%}")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _interpret_correlation(
-        result: CorrelationAnalysisResult,
-    ) -> str:
-        lines = [
-            (
-                "Historical correlation analysis "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
-
-        for item in result.items:
-            first_name = item.first_name or item.first_symbol
-            second_name = item.second_name or item.second_symbol
-
-            lines.append(
-                f"{first_name} ({item.first_symbol}) / "
-                f"{second_name} ({item.second_symbol}): "
-                f"{item.correlation:.2f}"
-            )
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _interpret_drawdown(
-        result: DrawdownComparisonResult,
-    ) -> str:
-        lines = [
-            (
-                "Maximum drawdown comparison "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
-
-        for rank, item in enumerate(
-            result.items,
-            start=1,
-        ):
-            name = item.name or item.symbol
-
-            line = (
-                f"{rank}. {name} ({item.symbol}): "
-                f"{item.maximum_drawdown:.2%} "
-                f"(peak {item.peak_date}, "
-                f"trough {item.trough_date}"
-            )
-
-            if item.recovery_date is not None:
-                line += f", recovery {item.recovery_date}"
-
-            line += ")"
-
-            lines.append(line)
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _interpret_ranking(
-        result: RankingResult,
-    ) -> str:
-        lines = [
-            (
-                f"Ranking by {result.metric} "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
-
-        for item in result.items:
-            name = item.name or item.symbol
-
-            lines.append(f"{item.rank}. {name} ({item.symbol}): {item.value:.2%}")
-
-        return "\n".join(lines)
-
-    @staticmethod
     def _interpret_validation(
+        self,
         validation: RequestValidationResult,
     ) -> str:
-        if validation.status == RequestStatus.NEEDS_CLARIFICATION:
-            header = "I need clarification before running the analysis:"
-
-        elif validation.status == RequestStatus.UNSUPPORTED:
-            header = "I understand the request, but this analysis is not supported yet:"
-
-        else:
-            raise ValueError(f"unexpected validation status: {validation.status}")
-
-        lines = [
-            header,
-            *(f"- {issue}" for issue in validation.issues),
-        ]
-
-        return "\n".join(lines)
+        return self.interpretation.interpret_validation(validation)

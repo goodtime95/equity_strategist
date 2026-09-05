@@ -23,6 +23,9 @@ from equity_strategist.domain.analysis_results import (
 )
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.results import PriceOnDateResult
+from equity_strategist.interpretation.deterministic import (
+    DeterministicInterpretation,
+)
 from equity_strategist.strategists.equity_strategist import (
     EquityStrategist,
 )
@@ -83,6 +86,7 @@ def test_interpret_volatility_result():
         planner=None,
         executor=None,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
     answer = strategist.interpret(execution)
@@ -138,6 +142,7 @@ def test_interpret_price_result():
         planner=None,
         executor=None,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
     answer = strategist.interpret(execution)
@@ -229,6 +234,7 @@ def test_interpret_multiple_results() -> None:
         planner=None,
         executor=None,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
     answer = strategist.interpret(execution)
@@ -258,6 +264,7 @@ def test_answer_request_stops_when_clarification_is_needed() -> None:
         planner=EquityPlanner(),
         executor=None,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
     answer = strategist.answer_request(request)
@@ -284,6 +291,7 @@ def test_answer_request_stops_when_analysis_is_unsupported() -> None:
         planner=EquityPlanner(),
         executor=None,
         validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
     )
 
     answer = strategist.answer_request(request)
