@@ -77,6 +77,10 @@ ANALYSIS_REQUEST_SCHEMA = {
         "ranking_direction": {
             "type": ["string", "null"],
             "enum": ["highest", "lowest", None],
+            "description": (
+                "Explicit ordering direction requested by the user. Null for a "
+                "generic rank request with no stated direction."
+            ),
         },
         "top_n": {
             "type": ["integer", "null"],
@@ -311,9 +315,12 @@ Rules:
     volatility unless the question clearly implies historical
     volatility.
 
-11. For rank requests, set ranking_direction to "highest" for best,
-    highest, most, or top requests and to "lowest" for worst, lowest,
-    least, or bottom requests. Extract an explicit top-N limit into top_n.
+11. Set ranking_direction only when the user explicitly communicates an ordering
+    direction. Use "highest" for best, highest, most, top, or "from highest to
+    lowest" requests. Use "lowest" for worst, lowest, least, bottom, or "from
+    lowest to highest" requests. A generic request to rank assets by a metric does
+    not specify direction: leave ranking_direction null. Do not infer "highest"
+    merely because objective = rank. Extract an explicit top-N limit into top_n.
 
 12. Leave ranking_direction and top_n null for non-ranking requests.
 
@@ -352,6 +359,26 @@ Examples:
 
 "Which stock was the least volatile?"
 -> rank
+
+Ranking direction examples:
+
+"Rank LVMH, SAP and Siemens by performance"
+-> ranking_direction = null
+
+"Rank LVMH, SAP and Siemens from highest to lowest performance"
+-> ranking_direction = highest
+
+"Which of LVMH and SAP performed best?"
+-> ranking_direction = highest
+
+"Show the top 3 performers"
+-> ranking_direction = highest, top_n = 3
+
+"Which stock was least volatile?"
+-> ranking_direction = lowest
+
+"Show the bottom 5 performers"
+-> ranking_direction = lowest, top_n = 5
 
 Examples:
 
@@ -468,6 +495,10 @@ Entity extraction rules:
 
     12. Preserve explicit assets and an explicit universe independently. If the
     clarification names both, populate both fields.
+
+    13. Set ranking_direction only when the user explicitly requests an ordering
+    direction. A generic rank request leaves it null; do not infer "highest" from
+    objective = rank alone.
 
     Supported objectives:
     - get

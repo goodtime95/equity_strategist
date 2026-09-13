@@ -161,6 +161,7 @@ def _payload(**overrides: object) -> dict[str, object]:
         "payload",
         "expected_objective",
         "expected_metric",
+        "expected_direction",
         "expected_status",
     ),
     [
@@ -173,6 +174,7 @@ def _payload(**overrides: object) -> dict[str, object]:
             ),
             AnalysisObjective.COMPARE,
             AnalysisMetric.DRAWDOWN,
+            None,
             RequestStatus.READY,
         ),
         (
@@ -187,6 +189,7 @@ def _payload(**overrides: object) -> dict[str, object]:
             ),
             AnalysisObjective.GET,
             AnalysisMetric.PRICE,
+            None,
             RequestStatus.READY,
         ),
         (
@@ -200,6 +203,7 @@ def _payload(**overrides: object) -> dict[str, object]:
             ),
             AnalysisObjective.RANK,
             AnalysisMetric.DRAWDOWN,
+            RankingDirection.HIGHEST,
             RequestStatus.UNSUPPORTED,
         ),
         (
@@ -212,6 +216,7 @@ def _payload(**overrides: object) -> dict[str, object]:
             ),
             AnalysisObjective.RANK,
             AnalysisMetric.PERFORMANCE,
+            None,
             RequestStatus.NEEDS_CLARIFICATION,
         ),
     ],
@@ -221,6 +226,7 @@ def test_llm_understanding_preserves_typed_fields_without_false_constraints(
     payload: dict[str, object],
     expected_objective: AnalysisObjective,
     expected_metric: AnalysisMetric,
+    expected_direction: RankingDirection | None,
     expected_status: RequestStatus,
 ) -> None:
     client = CapturingOpenAI(payload)
@@ -229,12 +235,37 @@ def test_llm_understanding_preserves_typed_fields_without_false_constraints(
 
     assert request.objective == expected_objective
     assert request.metrics == (expected_metric,)
+    assert request.ranking_direction == expected_direction
     assert request.constraints == ()
     assert AnalysisRequestValidator().validate(request).status == expected_status
 
     instructions = client.responses.calls[0]["instructions"]
     assert "only genuine additional analytical restrictions" in instructions
     assert "If the user names both, populate both assets and universe" in instructions
+    assert 'Do not infer "highest"' in instructions
+
+
+def test_generic_rank_with_assets_and_universe_has_no_explicit_direction() -> None:
+    client = CapturingOpenAI(
+        _payload(
+            objective="rank",
+            assets=["LVMH", "TotalEnergies", "Safran"],
+            universe="CAC 40",
+        )
+    )
+
+    request = LLMUnderstanding(client=client).understand(
+        "Within the CAC 40 universe, rank only LVMH, TotalEnergies and Safran "
+        "by historical performance from 2024-01-01 to 2025-12-31."
+    )
+
+    assert request.assets == ("LVMH", "TotalEnergies", "Safran")
+    assert request.universe == "CAC 40"
+    assert request.ranking_direction is None
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )
 
 
 def test_llm_understanding_preserves_genuine_unsupported_constraint() -> None:
