@@ -176,7 +176,11 @@ NEEDS_CLARIFICATION
 UNSUPPORTED
 READY
 
-The request contains enough information and the current engine supports it.
+The request contains enough information, its shape satisfies the structural
+preconditions of every planned capability, and the current engine supports it.
+For example, a point-in-time price request is READY only with exactly one
+non-blank asset query. READY does not guarantee that later asset resolution,
+provider access, or market-data quality checks will succeed.
 
 NEEDS_CLARIFICATION
 

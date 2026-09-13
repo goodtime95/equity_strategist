@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from equity_strategist.domain.analysis_execution import (
     AnalysisExecutionResult,
 )
@@ -60,6 +62,9 @@ class FakeVolatilityAnalysisService:
 
 
 class FakeMarketQueryService:
+    def __init__(self):
+        self.calls = []
+
     def get_price_on_date(
         self,
         asset_query,
@@ -68,6 +73,7 @@ class FakeMarketQueryService:
         preferred_currency=None,
         use_adjusted_close=True,
     ):
+        self.calls.append((asset_query, target_date))
         return PriceOnDateResult(
             asset=Asset(
                 symbol="MC.PA",
@@ -346,7 +352,9 @@ def test_execute_price_on_date_plan():
         ),
     )
 
-    result = build_executor().execute(plan)
+    executor = build_executor()
+
+    result = executor.execute(plan)
 
     price = result.step_results[0].result
 
@@ -358,6 +366,31 @@ def test_execute_price_on_date_plan():
     assert price.asset.symbol == "MC.PA"
 
     assert price.price == Decimal("500")
+    assert executor.market_query_service.calls == [
+        ("LVMH", date(2020, 3, 13)),
+    ]
+
+
+@pytest.mark.parametrize("assets", [(), ("LVMH", "Hermès")])
+def test_execute_price_on_date_keeps_defensive_asset_count_guard(
+    assets: tuple[str, ...],
+) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.GET,
+        metrics=(AnalysisMetric.PRICE,),
+        assets=assets,
+        target_date=date(2020, 3, 13),
+    )
+    plan = AnalysisPlan(
+        request=request,
+        steps=(PlanStep(capability=Capability.PRICE_ON_DATE),),
+    )
+    executor = build_executor()
+
+    with pytest.raises(ValueError, match="exactly one asset"):
+        executor.execute(plan)
+
+    assert executor.market_query_service.calls == []
 
 
 def test_execute_performance_plan():

@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from equity_strategist.domain.analysis_execution import (
     AnalysisExecutionResult,
     StepExecutionResult,
@@ -33,6 +35,16 @@ from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.strategists.validator import (
     AnalysisRequestValidator,
 )
+
+
+class FailIfCalledPlanner:
+    def plan(self, request):
+        raise AssertionError(f"planner called for malformed request: {request}")
+
+
+class FailIfCalledExecutor:
+    def execute(self, plan):
+        raise AssertionError(f"executor called for malformed plan: {plan}")
 
 
 def test_interpret_volatility_result():
@@ -298,3 +310,55 @@ def test_answer_request_stops_when_analysis_is_unsupported() -> None:
 
     assert "not supported yet" in answer.lower()
     assert "rank + drawdown" in answer.lower()
+
+
+@pytest.mark.parametrize(
+    ("request_case", "expected_issue"),
+    [
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.GET,
+                metrics=(AnalysisMetric.PRICE,),
+                assets=("LVMH", "Hermès"),
+                target_date=date(2025, 1, 1),
+            ),
+            "exactly one asset",
+        ),
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.RANK,
+                metrics=(AnalysisMetric.PERFORMANCE,),
+                assets=("LVMH",),
+                universe="CAC 40",
+                start_date=date(2024, 1, 1),
+                end_date=date(2025, 1, 1),
+            ),
+            "at least two assets",
+        ),
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.GET,
+                metrics=(AnalysisMetric.PRICE,),
+                assets=(" ",),
+                target_date=date(2025, 1, 1),
+            ),
+            "cannot be blank",
+        ),
+    ],
+)
+def test_malformed_request_stops_before_planning_and_execution(
+    request_case: AnalysisRequest,
+    expected_issue: str,
+) -> None:
+    strategist = EquityStrategist(
+        understanding=None,
+        planner=FailIfCalledPlanner(),
+        executor=FailIfCalledExecutor(),
+        validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
+    )
+
+    answer = strategist.answer_request(request_case)
+
+    assert "clarification" in answer.lower()
+    assert expected_issue in answer.lower()

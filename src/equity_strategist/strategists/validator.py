@@ -55,8 +55,28 @@ class AnalysisRequestValidator:
     ) -> list[str]:
         issues = list(request.unresolved)
 
+        blank_asset_queries = [asset for asset in request.assets if not asset.strip()]
+        normalized_asset_queries = [
+            asset.strip().casefold() for asset in request.assets if asset.strip()
+        ]
+
         if not request.assets and request.universe is None:
             issues.append("at least one asset or universe is required")
+
+        if blank_asset_queries:
+            issues.append(
+                "asset queries cannot be blank; provide an asset name or symbol"
+            )
+
+        if len(normalized_asset_queries) != len(set(normalized_asset_queries)):
+            issues.append(
+                "duplicate asset queries are not allowed; specify distinct assets"
+            )
+
+        if request.universe is not None and not request.universe.strip():
+            issues.append(
+                "universe cannot be blank; provide a named investment universe"
+            )
 
         if not request.metrics:
             issues.append("at least one analysis metric is required")
@@ -72,17 +92,24 @@ class AnalysisRequestValidator:
             if request.target_date is None:
                 issues.append("target date is required for price queries")
 
+            if request.objective == AnalysisObjective.GET and len(request.assets) != 1:
+                issues.append(
+                    "price queries require exactly one asset; specify a single asset"
+                )
+
         if (
             request.objective
             in {
                 AnalysisObjective.COMPARE,
                 AnalysisObjective.RANK,
             }
-            and request.universe is None
             and request.assets
             and len(request.assets) < 2
         ):
-            issues.append("at least two assets are required")
+            issues.append(
+                "comparison and ranking requests with explicit assets require at "
+                "least two assets; specify another asset"
+            )
 
         if (
             AnalysisMetric.CORRELATION in request.metrics
