@@ -1,10 +1,14 @@
+from openai import OpenAI
+
 from equity_strategist.asset_registry import (
     build_default_asset_registry,
 )
 from equity_strategist.data_providers.yahoo import YahooFinanceProvider
+from equity_strategist.interpretation.base import InterpretationProvider
 from equity_strategist.interpretation.deterministic import (
     DeterministicInterpretation,
 )
+from equity_strategist.interpretation.llm import LLMInterpretation
 from equity_strategist.services.correlation_analysis import (
     CorrelationAnalysisService,
 )
@@ -68,6 +72,7 @@ from equity_strategist.universe_registry.registry import (
 def _build_equity_pipeline(
     understanding: UnderstandingProvider,
     universe_registry: UniverseRegistry,
+    interpretation: InterpretationProvider,
 ) -> EquityStrategist:
     """Build the shared Equity Strategist dependency graph."""
 
@@ -143,7 +148,7 @@ def _build_equity_pipeline(
         planner=planner,
         executor=executor,
         validator=AnalysisRequestValidator(),
-        interpretation=DeterministicInterpretation(),
+        interpretation=interpretation,
     )
 
 
@@ -157,15 +162,20 @@ def build_equity_strategist() -> EquityStrategist:
             universe_registry=universe_registry,
         ),
         universe_registry=universe_registry,
+        interpretation=DeterministicInterpretation(),
     )
 
 
-def build_llm_equity_strategist() -> EquityStrategist:
+def build_llm_equity_strategist(
+    client: OpenAI | None = None,
+) -> EquityStrategist:
     """Build the LLM-powered Equity Strategist pipeline."""
 
     universe_registry = build_default_universe_registry()
+    llm_client = client or OpenAI()
 
     return _build_equity_pipeline(
-        understanding=LLMUnderstanding(),
+        understanding=LLMUnderstanding(client=llm_client),
         universe_registry=universe_registry,
+        interpretation=LLMInterpretation(client=llm_client),
     )

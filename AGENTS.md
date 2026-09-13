@@ -155,6 +155,22 @@ If the effective calculation period differs from the requested period, expose th
 
 If multiple metrics are calculated for the same request, prefer using a consistent execution-level market-data snapshot where practical so that results are comparable.
 
+## LLM Interpretation and Evidence Authority
+
+Deterministic Python execution is the authoritative source of quantitative
+evidence. The LLM may reason over, compare, summarize, and explain that evidence,
+but generated prose is not itself an authoritative quantitative source.
+
+Do not ask the LLM to calculate financial metrics. Give it only structured facts
+derived from deterministic execution results, and preserve access to that
+evidence so callers can audit dates, instruments, methods, and values.
+
+At this stage, do not add a deterministic validator for generated prose. Prefer
+provenance and auditability of the underlying structured evidence. Keep prompt
+restrictions against unsupported forecasts, causal claims, and external market
+context, and use deterministic interpretation as the fallback when LLM
+interpretation fails.
+
 ## Financial and Data Conventions
 
 Financial conventions must be explicit and deterministic.

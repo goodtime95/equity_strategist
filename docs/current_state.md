@@ -501,12 +501,14 @@ build_equity_strategist()
 Uses:
 
 RuleBasedUnderstanding
+DeterministicInterpretation
 LLM-Powered Pipeline
 build_llm_equity_strategist()
 
 Uses:
 
 LLMUnderstanding
+LLMInterpretation
 
 Both pipelines share the same:
 
@@ -516,6 +518,8 @@ Executor;
 market-data layer;
 deterministic financial services;
 compute engine.
+
+Validation and clarification responses remain deterministic in both pipelines.
 Validated End-to-End LLM Workflow
 
 The following question has been successfully executed end-to-end:
@@ -601,9 +605,21 @@ The agent does not yet maintain conversational context across questions.
 
 Final LLM Interpretation
 
-The final answer is currently deterministic formatting.
+The reference pipeline formats final answers with deterministic templates.
 
-The LLM is not yet used to interpret or synthesize quantitative results.
+The LLM-powered pipeline serializes successful deterministic execution results
+into explicit JSON evidence before asking the LLM for a final explanation.
+Deterministic Python execution remains the authoritative source for every
+quantitative fact. The LLM may reason, compare, summarize, and explain the
+evidence, while its generated prose is treated as a presentation layer rather
+than an authoritative quantitative source.
+
+The current design intentionally does not attempt to validate generated prose
+with deterministic rules. Auditability instead comes from retaining the
+underlying structured evidence and its provenance. Prompt instructions prohibit
+unsupported forecasts, causal claims, external market context, new facts, and
+LLM-generated calculations. Client failures and malformed or empty responses
+fall back to deterministic formatting.
 
 Planner
 
@@ -664,7 +680,13 @@ Performance   Volatility   Correlation   Drawdown
           Structured Results
                   |
                   v
-        Deterministic Interpreter
+       InterpretationProvider
+          /             \
+         v               v
+Deterministic        LLM Interpreter
+ Interpreter       (evidence only)
+         \               /
+          +-------------+
                   |
                   v
                  USER
