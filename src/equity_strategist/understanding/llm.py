@@ -37,12 +37,20 @@ ANALYSIS_REQUEST_SCHEMA = {
         },
         "assets": {
             "type": "array",
+            "description": (
+                "Explicit asset references named by the user, including when "
+                "the user also names a universe."
+            ),
             "items": {
                 "type": "string",
             },
         },
         "universe": {
             "type": ["string", "null"],
+            "description": (
+                "Explicit investment universe named by the user, including when "
+                "the user also names individual assets."
+            ),
         },
         "start_date": {
             "type": ["string", "null"],
@@ -58,6 +66,10 @@ ANALYSIS_REQUEST_SCHEMA = {
         },
         "constraints": {
             "type": "array",
+            "description": (
+                "Additional analytical restrictions not represented by any other "
+                "request field. Metric and ordinary price wording do not belong here."
+            ),
             "items": {
                 "type": "string",
             },
@@ -286,8 +298,9 @@ Rules:
 
 6. If the user asks for several metrics, return all of them.
 
-7. If the request refers to an investment universe rather than
-   explicit assets, populate universe and leave assets empty.
+7. Extract explicit assets and an explicit investment universe independently.
+   If the user names both, populate both assets and universe. Leave assets empty
+   only when the user names a universe without naming individual assets.
 
 8. If information is ambiguous or missing, record a concise
    description in unresolved.
@@ -304,9 +317,21 @@ Rules:
 
 12. Leave ranking_direction and top_n null for non-ranking requests.
 
-13. Preserve any requested benchmark in benchmark and any other analytical
-    restriction in constraints. Do not silently discard either, and do not
-    encode ranking direction or top-N in constraints.
+13. Preserve any requested benchmark in benchmark.
+
+14. Put only genuine additional analytical restrictions that are not already
+    represented by another AnalysisRequest field in constraints. Examples include
+    "EUR only" and explicit analytical filters with no dedicated field.
+
+15. Do not put objective, metric, asset, universe, date, benchmark, ranking
+    direction, or top-N wording in constraints. In particular:
+    - "maximum drawdown" means metric = drawdown;
+    - "historical volatility" means metric = volatility;
+    - "performance" means metric = performance;
+    - "closing price" or "close price" means metric = price.
+    These phrases are not constraints. The downstream engine's standard price
+    convention remains authoritative; do not create a price-type constraint or
+    unresolved item.
 
 Objective selection rules:
 
@@ -435,6 +460,14 @@ Entity extraction rules:
     9. Do not answer the user.
 
     10. Do not invent missing information.
+
+    11. Put only genuine additional analytical restrictions that are not already
+    represented by another request field in constraints. Never encode metric or
+    ordinary price wording such as "maximum drawdown", "historical volatility",
+    "performance", "closing price", or "close price" as constraints.
+
+    12. Preserve explicit assets and an explicit universe independently. If the
+    clarification names both, populate both fields.
 
     Supported objectives:
     - get
