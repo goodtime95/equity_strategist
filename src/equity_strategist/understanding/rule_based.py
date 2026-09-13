@@ -5,6 +5,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 from equity_strategist.universe_registry.registry import (
     UniverseRegistry,
@@ -39,7 +40,10 @@ class RuleBasedUnderstanding:
         objective = self._parse_objective(clean_question)
         metrics = self._parse_metrics(clean_question)
         universe = self._parse_universe(clean_question)
-        assets = () if universe is not None else self._parse_assets(clean_question)
+        assets = self._parse_assets(
+            clean_question,
+            required=universe is None,
+        )
 
         start_date, end_date = self._parse_period(
             clean_question,
@@ -47,6 +51,16 @@ class RuleBasedUnderstanding:
         )
 
         target_date = self._parse_target_date(clean_question)
+        ranking_direction = (
+            self._parse_ranking_direction(clean_question)
+            if objective == AnalysisObjective.RANK
+            else None
+        )
+        top_n = (
+            self._parse_top_n(clean_question)
+            if objective == AnalysisObjective.RANK
+            else None
+        )
 
         return AnalysisRequest(
             objective=objective,
@@ -56,6 +70,8 @@ class RuleBasedUnderstanding:
             start_date=start_date,
             end_date=end_date,
             target_date=target_date,
+            ranking_direction=ranking_direction,
+            top_n=top_n,
             user_context=clean_question,
         )
 
@@ -64,6 +80,29 @@ class RuleBasedUnderstanding:
         question: str,
     ) -> AnalysisObjective:
         lower = question.casefold()
+
+        rank_words = (
+            "classe",
+            "classement",
+            "rank",
+            "ranking",
+            "top",
+            "bottom",
+            "best",
+            "worst",
+            "highest",
+            "lowest",
+            "most",
+            "least",
+            "meilleures",
+            "meilleurs",
+            "pires",
+            "plus faible",
+            "moins volatil",
+        )
+
+        if any(word in lower for word in rank_words):
+            return AnalysisObjective.RANK
 
         compare_words = (
             "compare",
@@ -94,19 +133,6 @@ class RuleBasedUnderstanding:
 
         if any(word in lower for word in analyze_words):
             return AnalysisObjective.ANALYZE
-
-        rank_words = (
-            "classe",
-            "classement",
-            "rank",
-            "ranking",
-            "top",
-            "meilleures",
-            "meilleurs",
-        )
-
-        if any(word in lower for word in rank_words):
-            return AnalysisObjective.RANK
 
         raise UnderstandingError("unable to identify analysis objective")
 
@@ -141,6 +167,7 @@ class RuleBasedUnderstanding:
     @staticmethod
     def _parse_assets(
         question: str,
+        required: bool = True,
     ) -> tuple[str, ...]:
         known_assets = (
             "LVMH",
@@ -168,7 +195,7 @@ class RuleBasedUnderstanding:
                 if canonical not in found:
                     found.append(canonical)
 
-        if not found:
+        if not found and required:
             raise UnderstandingError("unable to identify requested assets")
 
         return tuple(found)
@@ -222,6 +249,34 @@ class RuleBasedUnderstanding:
         year, month, day = (int(value) for value in match.groups())
 
         return date(year, month, day)
+
+    @staticmethod
+    def _parse_ranking_direction(question: str) -> RankingDirection:
+        lower = question.casefold()
+        lowest_words = (
+            "least",
+            "lowest",
+            "bottom",
+            "worst",
+            "moins volatil",
+            "moins performant",
+            "plus faible",
+            "pires",
+        )
+
+        if any(word in lower for word in lowest_words):
+            return RankingDirection.LOWEST
+
+        return RankingDirection.HIGHEST
+
+    @staticmethod
+    def _parse_top_n(question: str) -> int | None:
+        match = re.search(r"\btop\s+(\d+)\b", question, flags=re.IGNORECASE)
+
+        if match is None:
+            return None
+
+        return int(match.group(1))
 
     def _parse_universe(
         self,

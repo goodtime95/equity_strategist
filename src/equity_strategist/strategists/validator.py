@@ -63,6 +63,11 @@ class AnalysisRequestValidator:
         if not request.assets and request.universe is None:
             issues.append("at least one asset or universe is required")
 
+        if request.assets and request.universe is not None:
+            issues.append(
+                "assets and universe cannot both be used; specify one asset source"
+            )
+
         if blank_asset_queries:
             issues.append(
                 "asset queries cannot be blank; provide an asset name or symbol"
@@ -125,6 +130,38 @@ class AnalysisRequestValidator:
         request: AnalysisRequest,
     ) -> list[str]:
         issues: list[str] = []
+
+        if request.benchmark is not None:
+            issues.append("benchmark analysis is not currently supported")
+
+        if request.constraints:
+            issues.append("request constraints are not currently supported")
+
+        if request.market_period is not None:
+            issues.append(
+                "market_period is not currently supported; use explicit dates"
+            )
+
+        if request.objective != AnalysisObjective.RANK:
+            if request.ranking_direction is not None:
+                issues.append("ranking_direction is only supported for rank requests")
+
+            if request.top_n is not None:
+                issues.append("top_n is only supported for rank requests")
+
+        if (
+            request.target_date is not None
+            and AnalysisMetric.PRICE not in request.metrics
+        ):
+            issues.append("target_date is only supported for price requests")
+
+        if (request.start_date is not None or request.end_date is not None) and not any(
+            metric in AnalysisRequestValidator.PERIOD_METRICS
+            for metric in request.metrics
+        ):
+            issues.append(
+                "start_date and end_date are only supported for period-based metrics"
+            )
 
         for metric in request.metrics:
             capability = EquityPlanner.CAPABILITY_MAP.get(

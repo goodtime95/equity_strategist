@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 from langgraph.channels import UntrackedValue
 
@@ -11,6 +11,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 from equity_strategist.domain.request_validation import (
     RequestStatus,
@@ -35,6 +36,8 @@ class AnalysisRequestState(TypedDict):
     benchmark: str | None
 
     constraints: list[str]
+    ranking_direction: NotRequired[str | None]
+    top_n: NotRequired[int | None]
     user_context: str | None
     unresolved: list[str]
 
@@ -92,6 +95,12 @@ def analysis_request_to_state(
         "market_period": request.market_period,
         "benchmark": request.benchmark,
         "constraints": list(request.constraints),
+        "ranking_direction": (
+            request.ranking_direction.value
+            if request.ranking_direction is not None
+            else None
+        ),
+        "top_n": request.top_n,
         "user_context": request.user_context,
         "unresolved": list(request.unresolved),
     }
@@ -113,6 +122,12 @@ def analysis_request_from_state(
         constraints=tuple(data["constraints"]),
         user_context=data["user_context"],
         unresolved=tuple(data["unresolved"]),
+        ranking_direction=(
+            RankingDirection(direction)
+            if (direction := data.get("ranking_direction")) is not None
+            else None
+        ),
+        top_n=data.get("top_n"),
     )
 
 

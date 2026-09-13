@@ -6,6 +6,7 @@ from equity_strategist.domain.analysis_plan import (
     AnalysisPlan,
     Capability,
 )
+from equity_strategist.domain.analysis_request import RankingDirection
 from equity_strategist.services.correlation_analysis import (
     CorrelationAnalysisService,
 )
@@ -179,6 +180,10 @@ class EquityExecutor:
                     asset_queries=list(request.assets),
                     start_date=request.start_date,
                     end_date=request.end_date,
+                    ranking_direction=(
+                        request.ranking_direction or RankingDirection.HIGHEST
+                    ),
+                    top_n=request.top_n,
                 )
 
             if request.universe is not None:
@@ -193,6 +198,10 @@ class EquityExecutor:
                     start_date=request.start_date,
                     end_date=request.end_date,
                     universe=request.universe,
+                    ranking_direction=(
+                        request.ranking_direction or RankingDirection.HIGHEST
+                    ),
+                    top_n=request.top_n,
                 )
 
             raise ValueError("RANK_PERFORMANCE requires assets or universe")
@@ -208,6 +217,10 @@ class EquityExecutor:
                 asset_queries=list(request.assets),
                 start_date=request.start_date,
                 end_date=request.end_date,
+                ranking_direction=(
+                    request.ranking_direction or RankingDirection.HIGHEST
+                ),
+                top_n=request.top_n,
             )
 
         raise ValueError(f"unsupported capability: {capability}")

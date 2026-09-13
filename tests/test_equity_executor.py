@@ -15,6 +15,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
@@ -167,12 +168,20 @@ class FakeDrawdownAnalysisService:
 
 
 class FakeRankingAnalysisService:
+    def __init__(self):
+        self.calls = []
+
     def rank_performance(
         self,
         asset_queries,
         start_date,
         end_date,
+        ranking_direction=RankingDirection.HIGHEST,
+        top_n=None,
     ):
+        self.calls.append(
+            ("performance", ranking_direction, top_n, tuple(asset_queries))
+        )
         return RankingResult(
             metric="performance",
             start_date=start_date,
@@ -205,7 +214,10 @@ class FakeRankingAnalysisService:
         start_date,
         end_date,
         universe=None,
+        ranking_direction=RankingDirection.HIGHEST,
+        top_n=None,
     ):
+        self.calls.append(("universe", ranking_direction, top_n, universe))
         return RankingResult(
             metric="performance",
             start_date=start_date,
@@ -231,7 +243,12 @@ class FakeRankingAnalysisService:
         asset_queries,
         start_date,
         end_date,
+        ranking_direction=RankingDirection.HIGHEST,
+        top_n=None,
     ):
+        self.calls.append(
+            ("volatility", ranking_direction, top_n, tuple(asset_queries))
+        )
         return RankingResult(
             metric="volatility",
             start_date=start_date,
@@ -539,3 +556,49 @@ def test_execute_performance_ranking_from_universe():
         ranking_result,
         RankingResult,
     )
+
+
+def test_execute_ranking_forwards_direction_and_top_n() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.VOLATILITY,),
+        assets=("LVMH", "Hermès", "ASML"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=2,
+    )
+    plan = AnalysisPlan(
+        request=request,
+        steps=(PlanStep(capability=Capability.RANK_VOLATILITY),),
+    )
+    executor = build_executor()
+
+    executor.execute(plan)
+
+    assert executor.ranking_analysis_service.calls == [
+        ("volatility", RankingDirection.LOWEST, 2, ("LVMH", "Hermès", "ASML"))
+    ]
+
+
+def test_execute_universe_ranking_forwards_direction_and_top_n() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="Luxury Europe",
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 12, 31),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=1,
+    )
+    plan = AnalysisPlan(
+        request=request,
+        steps=(PlanStep(capability=Capability.RANK_PERFORMANCE),),
+    )
+    executor = build_executor()
+
+    executor.execute(plan)
+
+    assert executor.ranking_analysis_service.calls == [
+        ("universe", RankingDirection.LOWEST, 1, "Luxury Europe")
+    ]

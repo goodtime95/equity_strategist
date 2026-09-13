@@ -5,11 +5,14 @@ import pytest
 from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
+    RankingDirection,
 )
+from equity_strategist.domain.request_validation import RequestStatus
 from equity_strategist.domain.universe import (
     Universe,
     UniverseType,
 )
+from equity_strategist.strategists.validator import AnalysisRequestValidator
 from equity_strategist.understanding.rule_based import (
     RuleBasedUnderstanding,
     UnderstandingError,
@@ -162,6 +165,21 @@ def test_understand_performance_ranking() -> None:
 
     assert request.objective == AnalysisObjective.RANK
     assert request.metrics == (AnalysisMetric.PERFORMANCE,)
+    assert request.assets == ("LVMH", "Hermès", "ASML")
+    assert request.start_date == date(2024, 8, 9)
+    assert request.end_date == date(2026, 8, 9)
+
+
+def test_understand_lowest_top_n_ranking() -> None:
+    request = build_understanding().understand(
+        "Top 2 des moins volatiles entre LVMH, Hermès et ASML "
+        "sur les 2 dernières années",
+        today=date(2026, 8, 9),
+    )
+
+    assert request.objective == AnalysisObjective.RANK
+    assert request.ranking_direction == RankingDirection.LOWEST
+    assert request.top_n == 2
     assert request.assets == (
         "LVMH",
         "Hermès",
@@ -183,3 +201,19 @@ def test_understand_performance_ranking_from_universe() -> None:
     assert request.metrics == (AnalysisMetric.PERFORMANCE,)
     assert request.assets == ()
     assert request.universe == "Luxury Europe"
+
+
+def test_understand_preserves_explicit_assets_with_universe() -> None:
+    request = build_understanding().understand(
+        "Classe LVMH et Hermès dans Luxury Europe par performance "
+        "sur les 2 dernières années",
+        today=date(2026, 8, 10),
+    )
+
+    assert request.assets == ("LVMH", "Hermès")
+    assert request.universe == "Luxury Europe"
+
+    validation = AnalysisRequestValidator().validate(request)
+
+    assert validation.status == RequestStatus.NEEDS_CLARIFICATION
+    assert any("specify one asset source" in issue for issue in validation.issues)

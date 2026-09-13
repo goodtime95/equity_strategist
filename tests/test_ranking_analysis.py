@@ -3,6 +3,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from equity_strategist.domain.analysis_request import RankingDirection
 from equity_strategist.domain.asset import Asset
 from equity_strategist.domain.market_dataset import (
     MarketDataset,
@@ -152,3 +153,66 @@ def test_rank_volatility() -> None:
 
     assert result.items[0].value > result.items[1].value
     assert result.items[1].value > result.items[2].value
+
+
+def test_rank_performance_executes_lowest_direction_and_top_n() -> None:
+    service = RankingAnalysisService(market_dataset_service=FakeMarketDatasetService())
+
+    result = service.rank_performance(
+        asset_queries=["LVMH", "Hermès", "ASML"],
+        start_date=date(2020, 1, 1),
+        end_date=date(2020, 1, 7),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=2,
+    )
+
+    assert tuple(item.symbol for item in result.items) == ("ASML.AS", "RMS.PA")
+    assert tuple(item.rank for item in result.items) == (1, 2)
+
+
+def test_rank_volatility_executes_lowest_direction_and_top_n() -> None:
+    service = RankingAnalysisService(market_dataset_service=FakeMarketDatasetService())
+
+    result = service.rank_volatility(
+        asset_queries=["LVMH", "Hermès", "ASML"],
+        start_date=date(2020, 1, 1),
+        end_date=date(2020, 1, 7),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=1,
+    )
+
+    assert len(result.items) == 1
+    assert result.items[0].symbol == "MC.PA"
+
+
+@pytest.mark.parametrize("ranking_direction", ["highest", "sideways", None])
+def test_ranking_service_rejects_invalid_direction(
+    ranking_direction: object,
+) -> None:
+    service = RankingAnalysisService(market_dataset_service=FakeMarketDatasetService())
+
+    with pytest.raises(TypeError, match="RankingDirection"):
+        service.rank_performance(
+            asset_queries=["LVMH", "Hermès"],
+            start_date=date(2020, 1, 1),
+            end_date=date(2020, 1, 7),
+            ranking_direction=ranking_direction,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("top_n", [0, -1, 1.5, "2", True])
+def test_ranking_service_rejects_invalid_top_n(top_n: object) -> None:
+    service = RankingAnalysisService(market_dataset_service=FakeMarketDatasetService())
+
+    expected_error = (
+        ValueError
+        if isinstance(top_n, int) and not isinstance(top_n, bool)
+        else TypeError
+    )
+    with pytest.raises(expected_error, match="top_n"):
+        service.rank_performance(
+            asset_queries=["LVMH", "Hermès"],
+            start_date=date(2020, 1, 1),
+            end_date=date(2020, 1, 7),
+            top_n=top_n,  # type: ignore[arg-type]
+        )

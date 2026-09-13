@@ -7,6 +7,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 
 ANALYSIS_REQUEST_SCHEMA = {
@@ -61,6 +62,14 @@ ANALYSIS_REQUEST_SCHEMA = {
                 "type": "string",
             },
         },
+        "ranking_direction": {
+            "type": ["string", "null"],
+            "enum": ["highest", "lowest", None],
+        },
+        "top_n": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+        },
         "unresolved": {
             "type": "array",
             "items": {
@@ -78,6 +87,8 @@ ANALYSIS_REQUEST_SCHEMA = {
         "target_date",
         "benchmark",
         "constraints",
+        "ranking_direction",
+        "top_n",
         "unresolved",
     ],
     "additionalProperties": False,
@@ -130,6 +141,12 @@ class LLMUnderstanding:
             target_date=self._parse_date(payload["target_date"]),
             benchmark=payload["benchmark"],
             constraints=tuple(payload["constraints"]),
+            ranking_direction=(
+                RankingDirection(payload["ranking_direction"])
+                if payload["ranking_direction"] is not None
+                else None
+            ),
+            top_n=payload["top_n"],
             user_context=question,
             unresolved=tuple(payload["unresolved"]),
         )
@@ -166,6 +183,12 @@ class LLMUnderstanding:
             ),
             "benchmark": previous_request.benchmark,
             "constraints": list(previous_request.constraints),
+            "ranking_direction": (
+                previous_request.ranking_direction.value
+                if previous_request.ranking_direction is not None
+                else None
+            ),
+            "top_n": previous_request.top_n,
             "unresolved": list(previous_request.unresolved),
         }
 
@@ -203,6 +226,12 @@ class LLMUnderstanding:
             target_date=self._parse_date(payload["target_date"]),
             benchmark=payload["benchmark"],
             constraints=tuple(payload["constraints"]),
+            ranking_direction=(
+                RankingDirection(payload["ranking_direction"])
+                if payload["ranking_direction"] is not None
+                else None
+            ),
+            top_n=payload["top_n"],
             user_context=clarification,
             unresolved=tuple(payload["unresolved"]),
         )
@@ -268,6 +297,16 @@ Rules:
 10. "risk" alone should not automatically be interpreted as
     volatility unless the question clearly implies historical
     volatility.
+
+11. For rank requests, set ranking_direction to "highest" for best,
+    highest, most, or top requests and to "lowest" for worst, lowest,
+    least, or bottom requests. Extract an explicit top-N limit into top_n.
+
+12. Leave ranking_direction and top_n null for non-ranking requests.
+
+13. Preserve any requested benchmark in benchmark and any other analytical
+    restriction in constraints. Do not silently discard either, and do not
+    encode ranking direction or top-N in constraints.
 
 Objective selection rules:
 
@@ -388,8 +427,8 @@ Entity extraction rules:
     to the existing metrics rather than discarding previously requested
     metrics unless the user explicitly asks to replace them.
 
-    7. Preserve assets, universe, dates, benchmark and constraints unless
-    the clarification explicitly changes them.
+    7. Preserve assets, universe, dates, benchmark, constraints,
+    ranking_direction and top_n unless the clarification explicitly changes them.
 
     8. Do not perform financial calculations.
 

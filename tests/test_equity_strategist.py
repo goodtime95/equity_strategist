@@ -344,6 +344,17 @@ def test_answer_request_stops_when_analysis_is_unsupported() -> None:
             ),
             "cannot be blank",
         ),
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.RANK,
+                metrics=(AnalysisMetric.PERFORMANCE,),
+                assets=("LVMH", "Hermès"),
+                universe="CAC 40",
+                start_date=date(2024, 1, 1),
+                end_date=date(2025, 1, 1),
+            ),
+            "one asset source",
+        ),
     ],
 )
 def test_malformed_request_stops_before_planning_and_execution(
@@ -361,4 +372,37 @@ def test_malformed_request_stops_before_planning_and_execution(
     answer = strategist.answer_request(request_case)
 
     assert "clarification" in answer.lower()
+    assert expected_issue in answer.lower()
+
+
+@pytest.mark.parametrize(
+    ("request_kwargs", "expected_issue"),
+    [
+        ({"benchmark": "STOXX Europe 600"}, "benchmark analysis"),
+        ({"constraints": ("EUR only",)}, "constraints"),
+    ],
+)
+def test_unsupported_request_stops_before_planning_and_execution(
+    request_kwargs: dict,
+    expected_issue: str,
+) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        **request_kwargs,
+    )
+    strategist = EquityStrategist(
+        understanding=None,
+        planner=FailIfCalledPlanner(),
+        executor=FailIfCalledExecutor(),
+        validator=AnalysisRequestValidator(),
+        interpretation=DeterministicInterpretation(),
+    )
+
+    answer = strategist.answer_request(request)
+
+    assert "not supported" in answer.lower()
     assert expected_issue in answer.lower()

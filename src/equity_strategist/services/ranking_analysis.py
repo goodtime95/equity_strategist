@@ -10,6 +10,7 @@ from equity_strategist.compute.returns import (
 from equity_strategist.compute.volatility import (
     compute_volatility,
 )
+from equity_strategist.domain.analysis_request import RankingDirection
 from equity_strategist.domain.analysis_results import (
     RankingItem,
     RankingResult,
@@ -35,9 +36,13 @@ class RankingAnalysisService:
         asset_queries: list[str],
         start_date: date,
         end_date: date,
+        ranking_direction: RankingDirection = RankingDirection.HIGHEST,
+        top_n: int | None = None,
     ) -> RankingResult:
         if len(asset_queries) < 2:
             raise ValueError("at least two assets are required for ranking")
+
+        self._validate_ranking_controls(ranking_direction, top_n)
 
         dataset = self.market_dataset_service.build_price_dataset(
             asset_queries=asset_queries,
@@ -49,6 +54,8 @@ class RankingAnalysisService:
             dataset=dataset,
             start_date=start_date,
             end_date=end_date,
+            ranking_direction=ranking_direction,
+            top_n=top_n,
         )
 
     def rank_performance_for_assets(
@@ -57,9 +64,13 @@ class RankingAnalysisService:
         start_date: date,
         end_date: date,
         universe: str | None = None,
+        ranking_direction: RankingDirection = RankingDirection.HIGHEST,
+        top_n: int | None = None,
     ) -> RankingResult:
         if len(assets) < 2:
             raise ValueError("at least two assets are required for ranking")
+
+        self._validate_ranking_controls(ranking_direction, top_n)
 
         dataset = self.market_dataset_service.build_price_dataset_for_assets(
             assets=assets,
@@ -72,6 +83,8 @@ class RankingAnalysisService:
             dataset=dataset,
             start_date=start_date,
             end_date=end_date,
+            ranking_direction=ranking_direction,
+            top_n=top_n,
         )
 
     def rank_volatility(
@@ -79,9 +92,13 @@ class RankingAnalysisService:
         asset_queries: list[str],
         start_date: date,
         end_date: date,
+        ranking_direction: RankingDirection = RankingDirection.HIGHEST,
+        top_n: int | None = None,
     ) -> RankingResult:
         if len(asset_queries) < 2:
             raise ValueError("at least two assets are required for ranking")
+
+        self._validate_ranking_controls(ranking_direction, top_n)
 
         dataset = self.market_dataset_service.build_price_dataset(
             asset_queries=asset_queries,
@@ -114,8 +131,9 @@ class RankingAnalysisService:
 
         raw_items.sort(
             key=lambda item: item[2],
-            reverse=True,
+            reverse=ranking_direction == RankingDirection.HIGHEST,
         )
+        selected_items = raw_items[:top_n]
 
         ranked_items = tuple(
             RankingItem(
@@ -129,7 +147,7 @@ class RankingAnalysisService:
                 name,
                 value,
             ) in enumerate(
-                raw_items,
+                selected_items,
                 start=1,
             )
         )
@@ -146,6 +164,8 @@ class RankingAnalysisService:
         dataset: MarketDataset,
         start_date: date,
         end_date: date,
+        ranking_direction: RankingDirection,
+        top_n: int | None,
     ) -> RankingResult:
         raw_items = []
 
@@ -164,8 +184,9 @@ class RankingAnalysisService:
 
         raw_items.sort(
             key=lambda item: item[2],
-            reverse=True,
+            reverse=ranking_direction == RankingDirection.HIGHEST,
         )
+        selected_items = raw_items[:top_n]
 
         ranked_items = tuple(
             RankingItem(
@@ -179,7 +200,7 @@ class RankingAnalysisService:
                 name,
                 value,
             ) in enumerate(
-                raw_items,
+                selected_items,
                 start=1,
             )
         )
@@ -190,3 +211,18 @@ class RankingAnalysisService:
             end_date=end_date,
             items=ranked_items,
         )
+
+    @staticmethod
+    def _validate_ranking_controls(
+        ranking_direction: RankingDirection,
+        top_n: int | None,
+    ) -> None:
+        if not isinstance(ranking_direction, RankingDirection):
+            raise TypeError("ranking_direction must be a RankingDirection")
+
+        if top_n is not None:
+            if not isinstance(top_n, int) or isinstance(top_n, bool):
+                raise TypeError("top_n must be an integer or None")
+
+            if top_n < 1:
+                raise ValueError("top_n must be greater than zero")

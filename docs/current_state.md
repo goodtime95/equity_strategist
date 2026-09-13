@@ -182,6 +182,12 @@ For example, a point-in-time price request is READY only with exactly one
 non-blank asset query. READY does not guarantee that later asset resolution,
 provider access, or market-data quality checks will succeed.
 
+Ranking requests support an explicit highest-or-lowest direction and an optional
+positive top-N limit. Both are applied deterministically by the ranking service.
+Benchmark-relative analysis, free-form constraints, and `market_period` are
+currently reported as unsupported. Requests containing both explicit assets and
+a universe require clarification so neither asset source is silently ignored.
+
 NEEDS_CLARIFICATION
 
 The user intent is incomplete or ambiguous.
@@ -585,9 +591,9 @@ Only selected capabilities currently support universe-based execution.
 
 Ranking Semantics
 
-Ranking direction and top_n are not yet represented as dedicated structured fields.
-
-Some ranking intent is currently stored in free-text constraints.
+Ranking direction and top_n are dedicated structured fields and are executed by
+the deterministic ranking services. Other free-text constraints are explicitly
+reported as unsupported.
 
 Conversation State
 

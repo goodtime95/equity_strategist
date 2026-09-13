@@ -13,6 +13,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 from equity_strategist.domain.analysis_results import (
     PerformanceComparisonResult,
@@ -23,6 +24,10 @@ from equity_strategist.domain.request_validation import (
     RequestValidationResult,
 )
 from equity_strategist.strategists.graph import EquityStrategistGraph
+from equity_strategist.strategists.graph_state import (
+    analysis_request_from_state,
+    analysis_request_to_state,
+)
 
 
 class FakeUnderstanding:
@@ -389,3 +394,38 @@ def test_graph_refines_request_across_two_turns() -> None:
     assert second_result["plan"] is not None
     assert second_result["execution"] is not None
     assert second_result["answer"] == "fake answer"
+
+
+def test_graph_state_preserves_ranking_controls() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=1,
+    )
+
+    restored = analysis_request_from_state(analysis_request_to_state(request))
+
+    assert restored == request
+
+
+def test_graph_state_restores_request_without_ranking_controls() -> None:
+    old_state = analysis_request_to_state(
+        AnalysisRequest(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("LVMH", "Hermès"),
+            start_date=date(2024, 1, 1),
+            end_date=date(2025, 1, 1),
+        )
+    )
+    del old_state["ranking_direction"]
+    del old_state["top_n"]
+
+    restored = analysis_request_from_state(old_state)
+
+    assert restored.ranking_direction is None
+    assert restored.top_n is None

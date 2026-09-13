@@ -1,6 +1,7 @@
 from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
+    RankingDirection,
 )
 from equity_strategist.understanding.llm import (
     LLMUnderstanding,
@@ -26,6 +27,8 @@ class FakeResponse:
         "target_date": null,
         "benchmark": null,
         "constraints": [],
+        "ranking_direction": null,
+        "top_n": null,
         "unresolved": []
     }
     """
@@ -67,3 +70,41 @@ def test_llm_understanding_builds_analysis_request() -> None:
 
     assert request.start_date.isoformat() == "2024-08-15"
     assert request.end_date.isoformat() == "2026-08-15"
+
+
+class FakeRankingResponse:
+    output_text = """
+    {
+        "objective": "rank",
+        "metrics": ["volatility"],
+        "assets": ["LVMH", "Hermès", "ASML"],
+        "universe": null,
+        "start_date": "2025-01-01",
+        "end_date": "2026-01-01",
+        "target_date": null,
+        "benchmark": null,
+        "constraints": [],
+        "ranking_direction": "lowest",
+        "top_n": 2,
+        "unresolved": []
+    }
+    """
+
+
+class FakeRankingResponses:
+    def create(self, **kwargs):
+        return FakeRankingResponse()
+
+
+class FakeRankingOpenAI:
+    def __init__(self) -> None:
+        self.responses = FakeRankingResponses()
+
+
+def test_llm_understanding_extracts_ranking_controls() -> None:
+    request = LLMUnderstanding(client=FakeRankingOpenAI()).understand(
+        "Show the two least volatile stocks"
+    )
+
+    assert request.ranking_direction == RankingDirection.LOWEST
+    assert request.top_n == 2

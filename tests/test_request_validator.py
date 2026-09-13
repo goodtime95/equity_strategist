@@ -6,6 +6,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    RankingDirection,
 )
 from equity_strategist.domain.request_validation import (
     RequestStatus,
@@ -351,3 +352,123 @@ def test_supported_capability_has_a_structurally_ready_request(
 
     assert result.status == RequestStatus.READY
     assert result.issues == ()
+
+
+@pytest.mark.parametrize(
+    ("request_kwargs", "expected_issue"),
+    [
+        ({"benchmark": "STOXX Europe 600"}, "benchmark analysis"),
+        ({"constraints": ("EUR only",)}, "constraints"),
+        ({"market_period": "1y"}, "market_period"),
+    ],
+)
+def test_unsupported_modifiers_are_explicitly_rejected(
+    request_kwargs: dict,
+    expected_issue: str,
+) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        **request_kwargs,
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.UNSUPPORTED
+    assert any(expected_issue in issue for issue in result.issues)
+
+
+def test_assets_and_universe_require_clarification() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        universe="CAC 40",
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+    assert any("specify one asset source" in issue for issue in result.issues)
+
+
+@pytest.mark.parametrize(
+    "request_kwargs",
+    [
+        {"ranking_direction": RankingDirection.LOWEST},
+        {"top_n": 1},
+    ],
+)
+def test_ranking_controls_are_unsupported_for_non_ranking_requests(
+    request_kwargs: dict,
+) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        **request_kwargs,
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.UNSUPPORTED
+
+
+def test_ranking_controls_are_supported_for_ranking_requests() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.VOLATILITY,),
+        assets=("LVMH", "Hermès", "ASML"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=2,
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.READY
+
+
+@pytest.mark.parametrize(
+    ("request_case", "expected_issue"),
+    [
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.GET,
+                metrics=(AnalysisMetric.PRICE,),
+                assets=("LVMH",),
+                target_date=date(2025, 1, 1),
+                start_date=date(2024, 1, 1),
+                end_date=date(2025, 1, 1),
+            ),
+            "period-based metrics",
+        ),
+        (
+            AnalysisRequest(
+                objective=AnalysisObjective.COMPARE,
+                metrics=(AnalysisMetric.PERFORMANCE,),
+                assets=("LVMH", "Hermès"),
+                start_date=date(2024, 1, 1),
+                end_date=date(2025, 1, 1),
+                target_date=date(2025, 1, 1),
+            ),
+            "target_date",
+        ),
+    ],
+)
+def test_irrelevant_date_parameters_are_explicitly_rejected(
+    request_case: AnalysisRequest,
+    expected_issue: str,
+) -> None:
+    result = AnalysisRequestValidator().validate(request_case)
+
+    assert result.status == RequestStatus.UNSUPPORTED
+    assert any(expected_issue in issue for issue in result.issues)
