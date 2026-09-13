@@ -1,268 +1,364 @@
 # Current State
 
-Last update: 2026-08-23
+Last update: 2026-09-13
 
 ---
 
 ## Current Milestone
 
-The Equity Strategist now supports a complete conversational quantitative workflow.
-
-A natural-language equity question can be:
-
-1. interpreted by an LLM into a strict structured request;
-2. validated before execution;
-3. translated into a deterministic analysis plan;
-4. executed through Python financial services;
-5. returned as a readable quantitative answer.
-
-Validated end-to-end example:
+Equity Strategist now supports a complete conversational quantitative workflow:
 
 ```text
-"Compare LVMH, Hermès and ASML in performance and volatility
-over the last two years."
+Natural-language question
         |
         v
-LLMUnderstanding
+UnderstandingProvider
         |
-        v
-AnalysisRequest
-        |
-        v
-AnalysisRequestValidator
-        |
-        v
-EquityPlanner
-        |
-        +----------------------+
-        |                      |
-        v                      v
-COMPARE_PERFORMANCE     COMPARE_VOLATILITY
-        |                      |
-        +----------+-----------+
-                   |
-                   v
+        +---------------------------+
+        |                           |
+        v                           v
+RuleBasedUnderstanding       LLMUnderstanding
+        |                           |
+        +-------------+-------------+
+                      |
+                      v
+               AnalysisRequest
+                      |
+                      v
+          AnalysisRequestValidator
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+        READY   NEEDS_CLARIFICATION UNSUPPORTED
+          |
+          v
+              EquityPlanner
+          |
+          v
+              AnalysisPlan
+          |
+          v
              EquityExecutor
-                   |
-                   v
-        Deterministic services
-                   |
-                   v
-         Market data + compute
-                   |
-                   v
-          Structured results
-                   |
-                   v
-             Interpretation
+          |
+          v
+       Deterministic services
+          |
+          v
+        Market data + compute
+          |
+          v
+       Structured execution results
+          |
+          v
+       InterpretationProvider
+          |
+          +-------------------------+
+          |                         |
+          v                         v
+DeterministicInterpretation   LLMInterpretation
+          |                         |
+          +------------+------------+
+                       |
+                       v
+                      User
+```
 
+The core principle remains:
 
+```text
+LLM decides WHAT.
+Python decides HOW.
+```
 
-The LLM determines what the user wants.
+More precisely:
 
-Python determines how the financial analysis is calculated.
+* the LLM may interpret user intent;
+* Python validates, plans, retrieves data, and calculates quantitative results;
+* deterministic execution produces structured evidence;
+* the LLM may explain, compare, and summarize that evidence.
 
-Core Design Principle
-Probabilistic intelligence at the top.
-Deterministic financial computation at the bottom.
+Python execution remains the authoritative source of quantitative facts.
 
-The LLM is currently used only for natural-language understanding.
+---
 
-It does not:
+## Current Product Baseline
 
-calculate returns;
-calculate volatility;
-calculate drawdowns;
-calculate correlations;
-rank assets numerically;
-retrieve market data.
+The full LLM-powered product path has been exercised through a live E2E battery.
 
-Those responsibilities remain inside deterministic Python components.
+The current product battery contains 19 analyst-style cases and currently passes:
 
-Implemented
-Project
-Python 3.12
-package structure under src/
-Git repository
-Ruff
-Pytest
-editable package installation
-GitHub source control
-generated packaging artifacts ignored by Git
-Domain
+```text
+19 / 19
+```
 
-Implemented domain objects include:
+The battery covers:
 
-Asset
-DailyPriceObservation
-MarketSeries
-MarketDataset
-PriceOnDateResult
-AnalysisRequest
-AnalysisPlan
-PlanStep
-Capability
-AnalysisExecutionResult
-StepExecutionResult
-PerformanceComparisonResult
-VolatilityComparisonResult
-CorrelationAnalysisResult
-DrawdownComparisonResult
-RankingResult
-Universe
-RequestValidationResult
+* external equity resolution;
+* performance comparison;
+* volatility comparison;
+* performance + volatility in one request;
+* correlation;
+* drawdown;
+* point-in-time price on a non-trading date;
+* explicit-asset performance ranking;
+* explicit-asset volatility ranking;
+* highest/top-N ranking;
+* lowest/bottom-N ranking;
+* universe performance ranking;
+* ambiguous risk clarification;
+* missing metric clarification;
+* missing asset clarification;
+* unsupported capability handling;
+* unsupported benchmark handling;
+* unsupported free-form constraints;
+* assets-versus-universe ambiguity;
+* multi-turn clarification.
 
-AnalysisRequest represents what the understanding layer extracted.
+The live battery is implemented in:
+
+```text
+scripts/e2e_question_battery.py
+```
+
+It is the main product-regression harness and should be extended as new capabilities are introduced rather than replaced by parallel E2E frameworks.
+
+---
+
+## Implemented Architecture
+
+### Domain
+
+The domain layer defines typed contracts including:
+
+* `Asset`;
+* `DailyPriceObservation`;
+* `MarketSeries`;
+* `MarketDataset`;
+* `PriceOnDateResult`;
+* `AnalysisRequest`;
+* `AnalysisPlan`;
+* `PlanStep`;
+* `Capability`;
+* `AnalysisExecutionResult`;
+* `StepExecutionResult`;
+* `PerformanceComparisonResult`;
+* `VolatilityComparisonResult`;
+* `CorrelationAnalysisResult`;
+* `DrawdownComparisonResult`;
+* `RankingResult`;
+* `Universe`;
+* `RequestValidationResult`.
+
+`AnalysisRequest` represents structured user intent.
 
 It may intentionally be incomplete.
 
-Execution readiness is determined later by AnalysisRequestValidator.
+Execution readiness is decided later by `AnalysisRequestValidator`.
 
-Understanding Layer
+---
 
-Two understanding implementations currently exist.
+## Understanding Layer
 
-RuleBasedUnderstanding
+Two implementations currently exist.
 
-Deterministic understanding used as a stable reference pipeline.
+### RuleBasedUnderstanding
 
-LLMUnderstanding
+Provides a deterministic reference path for supported simple request shapes.
 
-Uses an OpenAI model with structured outputs to convert natural-language questions into AnalysisRequest.
+It is intentionally limited and is not intended to become a general NLP engine.
 
-The structured output currently extracts:
+### LLMUnderstanding
 
-objective;
-metrics;
-assets;
-universe;
-start date;
-end date;
-target date;
-benchmark;
-constraints;
-unresolved information.
+Uses the OpenAI Responses API with structured output to convert natural-language questions into `AnalysisRequest`.
 
-Current objective types:
+The request currently captures concepts including:
 
-get
-compare
-rank
-analyze
+* objective;
+* metrics;
+* assets;
+* universe;
+* start date;
+* end date;
+* target date;
+* benchmark;
+* constraints;
+* unresolved information;
+* ranking direction;
+* top-N.
 
-Current metrics:
+Current objectives include:
 
-price
-performance
-volatility
-correlation
-drawdown
+* `GET`;
+* `COMPARE`;
+* `RANK`;
+* `ANALYZE`.
 
-The understanding layer follows the principle:
+Current metrics include:
 
-LLM decides WHAT.
-Quantitative engine decides HOW.
+* `PRICE`;
+* `PERFORMANCE`;
+* `VOLATILITY`;
+* `CORRELATION`;
+* `DRAWDOWN`.
 
-Implementation details such as return methodology, annualization, standard historical correlation methodology and non-trading-day handling are not treated as user clarifications.
+The LLM is expected to extract only user intent.
 
-Request Validation
+Implementation details such as financial methodology or standard deterministic conventions are not automatically turned into user clarification questions.
 
-AnalysisRequestValidator sits between Understanding and Planning.
+---
 
-It currently classifies a request as:
+## Validation
 
-READY
-NEEDS_CLARIFICATION
-UNSUPPORTED
-READY
+`AnalysisRequestValidator` sits between Understanding and Planning.
 
-The request contains enough information, its shape satisfies the structural
-preconditions of every planned capability, and the current engine supports it.
-For example, a point-in-time price request is READY only with exactly one
-non-blank asset query. READY does not guarantee that later asset resolution,
-provider access, or market-data quality checks will succeed.
+It returns:
 
-Ranking requests support an explicit highest-or-lowest direction and an optional
-positive top-N limit. Both are applied deterministically by the ranking service.
-Benchmark-relative analysis, free-form constraints, and `market_period` are
-currently reported as unsupported. Requests containing both explicit assets and
-a universe require clarification so neither asset source is silently ignored.
+* `READY`;
+* `NEEDS_CLARIFICATION`;
+* `UNSUPPORTED`.
 
-NEEDS_CLARIFICATION
+### READY
 
-The user intent is incomplete or ambiguous.
+The request contains enough information and its supported semantics satisfy execution preconditions.
 
-Examples:
+`READY` does not guarantee that:
 
-missing assets;
-missing universe;
-missing metric;
-missing analysis period;
-ambiguous concept such as risk.
-UNSUPPORTED
+* asset resolution will succeed;
+* Yahoo Finance will respond;
+* enough market data will exist.
 
-The request is understood and complete, but the current quantitative engine does not yet support the requested objective/metric combination.
+Those are later execution concerns.
 
-Example:
+### NEEDS_CLARIFICATION
 
+The request is incomplete or ambiguous in a way the user can repair.
+
+Examples include:
+
+* missing assets;
+* missing universe;
+* missing metric;
+* missing analysis period;
+* ambiguous concepts such as generic "risk";
+* simultaneous explicit assets and universe.
+
+### UNSUPPORTED
+
+The request is understood, but the current quantitative engine does not support the requested semantics.
+
+Examples include currently unsupported combinations such as:
+
+```text
 RANK + DRAWDOWN
+```
 
-The Validator prevents unsupported or incomplete requests from reaching the Planner and Executor.
+and unsupported modifiers such as some benchmark or free-form constraint requests.
 
-Planning
+The validator prevents unsupported or incomplete semantics from being silently discarded.
 
-EquityPlanner is currently deterministic.
+---
 
-It maps structured (objective, metric) combinations into capabilities.
+## Ranking Semantics
+
+Ranking requests support:
+
+* explicit highest/lowest direction;
+* optional positive `top_n`.
+
+If the user explicitly requests ranking direction, it is represented structurally.
+
+If the user simply asks to rank assets without specifying direction, understanding may leave direction unspecified and deterministic execution owns the default ordering convention.
+
+Ranking controls are applied by deterministic ranking services.
+
+They are not implemented through LLM sorting.
+
+---
+
+## Planning
+
+`EquityPlanner` is currently deterministic.
 
 Current capability mapping includes:
 
-GET + PRICE -> PRICE_ON_DATE
-COMPARE + PERFORMANCE -> COMPARE_PERFORMANCE
-COMPARE + VOLATILITY -> COMPARE_VOLATILITY
-COMPARE + DRAWDOWN -> COMPARE_DRAWDOWN
-ANALYZE + CORRELATION -> ANALYZE_CORRELATION
-RANK + PERFORMANCE -> RANK_PERFORMANCE
-RANK + VOLATILITY -> RANK_VOLATILITY
+```text
+GET + PRICE
+    -> PRICE_ON_DATE
 
-The planner supports multi-step requests.
+COMPARE + PERFORMANCE
+    -> COMPARE_PERFORMANCE
+
+COMPARE + VOLATILITY
+    -> COMPARE_VOLATILITY
+
+COMPARE + DRAWDOWN
+    -> COMPARE_DRAWDOWN
+
+ANALYZE + CORRELATION
+    -> ANALYZE_CORRELATION
+
+RANK + PERFORMANCE
+    -> RANK_PERFORMANCE
+
+RANK + VOLATILITY
+    -> RANK_VOLATILITY
+```
+
+The planner supports multi-step analysis.
 
 Example:
 
+```text
 COMPARE
-
 metrics:
 - PERFORMANCE
 - VOLATILITY
 - DRAWDOWN
+```
 
 produces three deterministic plan steps.
 
-The planner may become hybrid or LLM-assisted later, but deterministic planning is intentionally kept for the current stage.
+The planner is intentionally deterministic at the current stage.
 
-Execution
+A hybrid or LLM-assisted planner remains a possible future evolution once the capability space becomes sufficiently broad.
 
-EquityExecutor executes each PlanStep deterministically.
+---
 
-The Executor currently routes capabilities to:
+## Execution
 
-MarketQueryService
-PerformanceAnalysisService
-VolatilityAnalysisService
-CorrelationAnalysisService
-DrawdownAnalysisService
-RankingAnalysisService
+`EquityExecutor` executes `AnalysisPlan` steps deterministically.
+
+It currently routes work to services including:
+
+* `MarketQueryService`;
+* `PerformanceAnalysisService`;
+* `VolatilityAnalysisService`;
+* `CorrelationAnalysisService`;
+* `DrawdownAnalysisService`;
+* `RankingAnalysisService`;
+* `UniverseConstituentService`.
 
 Execution results remain structured domain objects before interpretation.
 
-Market Data Architecture
+The executor coordinates operations but does not own financial calculations.
 
-Yahoo Finance is currently used as the market-data provider.
+---
 
-It is not treated as the authoritative security master.
+## Market-Data Architecture
 
-The current shared dependency graph is:
+Yahoo Finance is currently the primary market-data provider.
 
+It is not treated as:
+
+* an authoritative security master;
+* an institutional-quality historical constituent source;
+* a complete fundamentals platform;
+* a production-grade benchmark methodology source.
+
+The main historical-data dependency flow is:
+
+```text
 YahooFinanceProvider
         |
         v
@@ -281,20 +377,26 @@ MarketDatasetService
         |             |               |
         v             v               v
    Drawdown        Ranking          ...
+```
 
-The same provider and resolver instances are also reused by:
+The same provider/resolution infrastructure is reused by:
 
-PriceTool
-MarketQueryService
-UniverseAssetResolver
+* `PriceTool`;
+* `MarketQueryService`;
+* `UniverseAssetResolver`.
 
-This prepares the architecture for a future cache / MarketStore without introducing one prematurely.
+A global cache or MarketStore has intentionally not yet been introduced.
 
-Asset Identity
+---
 
-Current asset identity flow:
+## Asset Resolution
 
-user asset reference
+Asset resolution no longer depends only on the small local registry.
+
+The current conceptual flow is:
+
+```text
+natural-language asset reference
         |
         v
 AssetResolver
@@ -302,442 +404,590 @@ AssetResolver
         v
 AssetRegistry
         |
-        v
-Asset
+    local match?
+      /      \
+    yes       no
+    |          |
+    v          v
+  Asset   provider fallback
+               |
+          resolved?
+           /     \
+         yes      no
+         |         |
+         v         v
+       Asset     failure
+```
 
-The registry currently supports resolution by:
+The local `AssetRegistry` remains useful for:
 
-ticker;
-company name;
-alias;
-ISIN.
+* stable known identities;
+* aliases;
+* known tickers;
+* known ISIN mappings.
 
-Known registered examples include:
+Provider fallback broadens real-world coverage.
 
-LVMH
-Hermès
-ASML
-Nvidia
-CAC 40
-Euro Stoxx 50
-S&P 500
+The live E2E suite has successfully exercised externally resolved names including European equities outside the small original registry.
 
-Asset coverage is intentionally limited at this stage.
+Ambiguous or unresolved identities should fail explicitly rather than being silently approximated.
 
-A fallback asset-resolution mechanism is the next major planned improvement.
+---
 
-MarketSeries
+## Universe Architecture
 
-MarketSeries is the generic normalized time-series representation.
+The project contains explicit universe abstractions.
+
+Current universe types include:
+
+* `STATIC`;
+* `DYNAMIC`.
+
+Examples include:
+
+* a static Luxury Europe universe;
+* CAC 40 through the configured Euronext universe provider.
+
+Universe resolution is intentionally separated from asset resolution.
+
+Current universe-based analytical support remains limited.
+
+Performance ranking over an available universe is supported.
+
+The current CAC 40 implementation represents a current constituent snapshot.
+
+It should not be interpreted as historical CAC 40 composition for past dates.
+
+The project currently has no historical constituent database or historical index-weight system.
+
+---
+
+## MarketSeries and MarketDataset
+
+### MarketSeries
+
+`MarketSeries` is the normalized internal time-series representation.
 
 Supported series kinds include:
 
-PRICE
-RETURN
-RATE
-VOLATILITY
-CORRELATION
-DRAWDOWN
-SPREAD
-VOLUME
+* `PRICE`;
+* `RETURN`;
+* `RATE`;
+* `VOLATILITY`;
+* `CORRELATION`;
+* `DRAWDOWN`;
+* `SPREAD`;
+* `VOLUME`.
 
-It validates:
+It validates properties including:
 
-DatetimeIndex;
-sorted dates;
-no duplicated dates;
-numeric values;
-no missing values.
-MarketDataset
+* `DatetimeIndex`;
+* sorted dates;
+* no duplicate dates;
+* numeric values;
+* no missing values.
 
-MarketDataset represents a coherent collection of MarketSeries.
+### MarketDataset
 
-It is used by analysis services to apply deterministic financial calculations across several assets.
+`MarketDataset` represents a coherent collection of `MarketSeries`.
+
+It is used by analysis services to perform deterministic calculations across multiple assets.
 
 Datasets can currently be built from:
 
-asset queries;
-already resolved Asset objects.
+* asset queries;
+* already resolved `Asset` objects.
 
-The resolved-asset path is used notably by universe-based workflows.
+The resolved-asset path is used by universe workflows.
 
-Compute Engine
+---
+
+## Compute Engine
 
 Implemented deterministic calculations include:
 
-Returns
-simple returns;
-logarithmic returns.
-Performance
-total performance;
-period performance;
-annualized performance;
-cumulative performance series.
-Volatility
-annualized historical volatility;
-rolling volatility.
-Correlation
-correlation;
-rolling correlation;
-common-date alignment.
-Drawdown
-drawdown series;
-maximum drawdown;
-peak date;
-trough date;
-recovery date.
+### Returns
 
-All calculations are performed in Python.
+* simple returns;
+* logarithmic returns.
 
-Analysis Services
+### Performance
 
-Implemented services:
+* total performance;
+* period performance;
+* annualized performance;
+* cumulative performance series.
 
-MarketQueryService
-MarketSeriesService
-MarketDatasetService
-PerformanceAnalysisService
-VolatilityAnalysisService
-CorrelationAnalysisService
-DrawdownAnalysisService
-RankingAnalysisService
-UniverseConstituentService
+Some performance primitives exist in `compute/` but are not yet fully exposed through natural-language capabilities.
 
-The distinction is:
+### Volatility
 
-compute
-= pure mathematical functions
+* annualized historical volatility;
+* rolling volatility.
 
-tool
-= focused technical capability
+Historical volatility is exposed.
 
-service
-= deterministic financial workflow
+Rolling volatility exists as a compute primitive but is not yet a user-facing capability.
 
-strategist
-= orchestration and reasoning
-Current Supported Analyses
-Price
+### Correlation
 
-Point-in-time price queries.
+* pairwise correlation;
+* rolling correlation;
+* common-date alignment.
+
+Pairwise correlation is exposed.
+
+Rolling correlation is not yet a user-facing capability.
+
+### Drawdown
+
+* drawdown series;
+* maximum drawdown;
+* peak date;
+* trough date;
+* recovery date.
+
+Maximum drawdown analysis is exposed.
+
+All authoritative quantitative calculations are performed in Python.
+
+---
+
+## Current User-Facing Analyses
+
+### Point-in-Time Price
 
 Example:
 
-"What was LVMH's price on March 15, 2020?"
+```text
+What was LVMH's price on March 15, 2020?
+```
 
-Non-trading dates may use the previous available trading session.
+For non-trading dates, the engine may use the previous available session according to its deterministic policy.
 
-Performance Comparison
+### Performance Comparison
 
-Compare historical performance across several assets.
+Compare historical total performance across several assets over an explicit period.
 
-Volatility Comparison
+### Volatility Comparison
 
 Compare annualized historical volatility across several assets.
 
-Correlation Analysis
+### Correlation Analysis
 
 Analyze historical pairwise correlations.
 
-Drawdown Comparison
+### Drawdown Comparison
 
 Compare maximum historical drawdowns.
 
-Performance Ranking
+### Performance Ranking
 
-Rank assets by historical performance.
+Rank explicit assets or a supported universe by historical performance.
 
-Volatility Ranking
+### Volatility Ranking
 
-Rank assets by historical volatility.
+Rank explicit assets by historical volatility.
 
-Multi-Metric Analysis
+### Multi-Metric Analysis
 
-A single user question can generate several plan steps.
+A single request may execute several deterministic analytical steps.
 
-Validated example:
+For example:
 
-performance + volatility
+```text
+Compare Schneider Electric and Safran in performance and volatility
+over the last two years.
+```
 
-for:
+can produce:
 
-LVMH
-Hermès
-ASML
-Universes
+```text
+COMPARE_PERFORMANCE
+COMPARE_VOLATILITY
+```
 
-The project now contains explicit universe abstractions.
+within one analysis.
 
-Current universe types:
+---
 
-STATIC
-DYNAMIC
+## Interpretation Layer
 
-Examples:
+Two interpretation implementations exist.
 
-Luxury Europe
+### DeterministicInterpretation
 
-Static universe including:
+Provides stable deterministic formatting.
 
-LVMH
-Hermès
-CAC 40
+It is used by the deterministic reference pipeline and as fallback for failed LLM interpretation.
 
-Dynamic universe with Euronext as the configured constituent provider.
+### LLMInterpretation
 
-Universe resolution is separated from asset resolution.
+Receives serialized evidence generated from deterministic execution results.
 
-Current universe-based execution support is intentionally limited to selected capabilities.
+The LLM may:
 
-Performance ranking over a universe is currently supported.
+* summarize;
+* compare;
+* explain;
+* reason over supplied evidence.
 
-Builders
+It is instructed not to:
 
-Two Equity Strategist pipelines are currently available.
+* introduce new quantitative facts;
+* independently calculate metrics;
+* add unsupported forecasts;
+* add causal explanations;
+* introduce external market context.
 
-Deterministic Reference Pipeline
+Client failures and malformed or empty LLM responses fall back to deterministic formatting.
+
+Validation and clarification responses remain deterministic.
+
+The project intentionally does not currently use:
+
+* a second LLM judge;
+* regex-based prose policing;
+* a deterministic semantic validator of generated prose.
+
+Auditability comes from preserving deterministic structured evidence.
+
+---
+
+## Builders
+
+Two application pipelines are available.
+
+### Deterministic Reference Pipeline
+
+```python
 build_equity_strategist()
+```
 
 Uses:
 
-RuleBasedUnderstanding
-DeterministicInterpretation
-LLM-Powered Pipeline
+* `RuleBasedUnderstanding`;
+* `DeterministicInterpretation`.
+
+### LLM-Powered Pipeline
+
+```python
 build_llm_equity_strategist()
+```
 
 Uses:
 
-LLMUnderstanding
-LLMInterpretation
+* `LLMUnderstanding`;
+* `LLMInterpretation`.
+
+The LLM builder shares the same injected OpenAI client between understanding and interpretation.
 
 Both pipelines share the same:
 
-Validator;
-Planner;
-Executor;
-market-data layer;
-deterministic financial services;
-compute engine.
+* validator;
+* planner;
+* executor;
+* market-data layer;
+* deterministic services;
+* compute engine.
 
-Validation and clarification responses remain deterministic in both pipelines.
-Validated End-to-End LLM Workflow
+---
 
-The following question has been successfully executed end-to-end:
+## Conversational Clarification
 
-Entre LVMH, Hermès et ASML, compare leur performance
-et leur volatilité sur les deux dernières années.
+LangGraph checkpointing supports local multi-turn analytical clarification.
 
-The system produced:
+For example:
 
-Understanding:
-COMPARE
-PERFORMANCE + VOLATILITY
-LVMH / Hermès / ASML
-2024-08-15 -> 2026-08-15
+```text
+User:
+Compare Schneider Electric and Safran in performance and risk
+over the last two years.
 
-Validation:
-READY
+System:
+"risk" needs clarification.
 
-Plan:
-COMPARE_PERFORMANCE
-COMPARE_VOLATILITY
+User:
+Volatility.
+```
 
-The deterministic engine then retrieved market data and calculated the performance and historical volatility results.
+The previous structured request can be refined into a complete request rather than reconstructed from scratch.
 
-This validates the full path:
+Conversation state is intended for local Equity Strategist workflow continuity.
 
-Natural language
-    |
-    v
-LLM
-    |
-    v
-Structured financial intent
-    |
-    v
-Deterministic validation
-    |
-    v
-Deterministic planning
-    |
-    v
-Market data
-    |
-    v
-Python financial calculations
-    |
-    v
-Readable answer
-Known Limitations
-Asset Coverage
+It is not intended to become general long-term user memory.
 
-Direct asset queries currently depend primarily on the local AssetRegistry.
+---
 
-A user may correctly ask for a company that the LLM understands but the registry does not yet know.
+## LangGraph State
 
-A fallback resolution mechanism is planned.
+LangGraph is used for orchestration and conversational state.
 
-Repeated Market-Data Retrieval
+Persisted state is kept serializable.
 
-Although analysis services now share the same provider and MarketDatasetService, separate metrics may still independently request the same historical data.
+Large runtime objects such as:
 
-Example:
+* `MarketDataset`;
+* provider clients;
+* execution service instances
 
+are not intended to be checkpointed.
+
+When persisted request fields evolve, deserialization must remain backward-compatible with older checkpoints.
+
+---
+
+## Current Limitations
+
+### Historical Period Alignment
+
+Comparisons currently rely on the available observations for each retrieved series.
+
+Before expanding multi-horizon and benchmark-relative analysis, the engine should adopt an explicit common effective-endpoint policy across compared assets and benchmarks.
+
+This is part of the next milestone.
+
+### Quantitative Traceability
+
+Current structured results expose core quantitative values but do not yet consistently expose all desired metadata such as:
+
+* requested versus effective dates;
+* observation counts;
+* price field;
+* return methodology;
+* annualization conventions;
+* currency.
+
+Improving this traceability is part of the next milestone.
+
+### Repeated Market-Data Retrieval
+
+A multi-step request such as:
+
+```text
 performance + volatility + drawdown
+```
 
-may still cause repeated retrieval of the same price history.
+may still retrieve overlapping historical data independently for different services.
 
-A future cache / MarketStore should solve this naturally.
+The next milestone should introduce execution-level dataset reuse where compatible, without turning the executor into a financial-calculation layer.
 
-Universe Coverage
+### Currency
 
-Only selected capabilities currently support universe-based execution.
+Historical performance is currently based on each asset's native quoted series.
 
-Ranking Semantics
+There is no common-currency FX conversion layer.
 
-Ranking direction and top_n are dedicated structured fields and are executed by
-the deterministic ranking services. Other free-text constraints are explicitly
-reported as unsupported.
+The engine must not claim common-currency performance unless such conversion is explicitly implemented.
 
-Conversation State
+### Universe Coverage
 
-The agent does not yet maintain conversational context across questions.
+Only selected capabilities currently support universe execution.
 
-Final LLM Interpretation
+The current universe model does not provide:
 
-The reference pipeline formats final answers with deterministic templates.
+* historical constituent membership;
+* historical weights;
+* index contribution methodology.
 
-The LLM-powered pipeline serializes successful deterministic execution results
-into explicit JSON evidence before asking the LLM for a final explanation.
-Deterministic Python execution remains the authoritative source for every
-quantitative fact. The LLM may reason, compare, summarize, and explain the
-evidence, while its generated prose is treated as a presentation layer rather
-than an authoritative quantitative source.
+### Data Quality
 
-The current design intentionally does not attempt to validate generated prose
-with deterministic rules. Auditability instead comes from retaining the
-underlying structured evidence and its provenance. Prompt instructions prohibit
-unsupported forecasts, causal claims, external market context, new facts, and
-LLM-generated calculations. Client failures and malformed or empty responses
-fall back to deterministic formatting.
+Yahoo Finance is suitable for the current product-development stage and historical-price analytics.
 
-Planner
+It is not sufficient by itself for institutional-grade:
 
-The planner is deterministic.
+* historical constituent databases;
+* index weights and contributions;
+* documented FX fixing methodology;
+* risk-free rate curves;
+* historical fundamentals;
+* consensus estimates;
+* news;
+* authoritative exchange calendars.
 
-A hybrid or LLM-assisted planner may be introduced later when the capability set becomes sufficiently broad to justify it.
+---
 
-Current Architecture
-USER
- |
- v
-UnderstandingProvider
- |
- +--------------------------+
- |                          |
- v                          v
-RuleBasedUnderstanding   LLMUnderstanding
- |                          |
- +------------+-------------+
-              |
-              v
-       AnalysisRequest
-              |
-              v
- AnalysisRequestValidator
-              |
-    +---------+----------+
-    |         |          |
-    v         v          v
- READY   CLARIFY    UNSUPPORTED
-    |
-    v
- EquityPlanner
-    |
-    v
- AnalysisPlan
-    |
-    v
- EquityExecutor
-    |
-    +--------------------------------------+
-    |             |            |           |
-    v             v            v           v
-Performance   Volatility   Correlation   Drawdown
-    |             |            |           |
-    +-------------+------------+-----------+
-                  |
-                  v
-          MarketDatasetService
-                  |
-                  v
-          MarketSeriesService
-                  |
-                  v
-        YahooFinanceProvider
-                  |
-                  v
-          Structured Results
-                  |
-                  v
-       InterpretationProvider
-          /             \
-         v               v
-Deterministic        LLM Interpreter
- Interpreter       (evidence only)
-         \               /
-          +-------------+
-                  |
-                  v
-                 USER
-Next Milestone
+## Next Milestone
 
-Improve asset resolution without building a proprietary security master.
+The next implementation milestone is:
 
-Target flow:
+```text
+Stage 0 — Quantitative foundations
+        +
+Stage 1 — Performance, horizons and benchmark
+```
 
-natural-language asset reference
-        |
-        v
-AssetRegistry
-        |
-      found?
-     /      \
-   yes       no
-   |         |
-   v         v
- Asset    provider / external lookup
-             |
-         unique match?
-          /       \
-        yes        no
-        |           |
-        v           v
-      Asset     clarification
+This work will be implemented on:
 
-The objective is broader real-world equity coverage while keeping the architecture lightweight.
+```text
+feat/performance-horizons-benchmark
+```
 
-Longer-Term Direction
+### Stage 0 — Quantitative Foundations
 
-The Equity Strategist is intended to become the first specialization of a broader Financial Reasoning Framework.
+Target improvements:
 
-Potential future modules:
+* explicit common effective endpoints for multi-asset comparisons and rankings;
+* preservation of requested versus effective dates;
+* richer structured calculation metadata;
+* observation counts;
+* price-field visibility;
+* return-method visibility;
+* annualization metadata where relevant;
+* asset currency in analytical results;
+* propagation of these facts into structured interpretation evidence;
+* coherent execution-level reuse of compatible historical datasets.
 
-Fixed Income
-FX
-Credit
-Cross Asset
-Structured Products
+The executor may coordinate compatible dataset reuse.
+
+It must not implement:
+
+* market-data alignment;
+* financial calculations;
+* horizon resolution;
+* slicing methodology.
+
+Those responsibilities remain in deterministic services.
+
+### Stage 1 — Performance, Horizons and Benchmark
+
+Planned typed performance measures:
+
+```text
+TOTAL
+ANNUALIZED
+RELATIVE
+EXCESS_RETURN
+```
+
+Planned standard horizons:
+
+```text
+1M
+3M
+6M
+YTD
+1Y
+3Y
+```
+
+Planned capabilities include:
+
+* total performance;
+* annualized performance;
+* standard-horizon performance;
+* multi-horizon performance;
+* executable benchmark support;
+* relative performance;
+* excess return;
+* ranking by horizon;
+* top/bottom selection per horizon.
+
+No separate capability should be created for each horizon.
+
+Existing performance operations should remain parameterized by structured request fields.
+
+### Planned Endpoint Policy
+
+For historical comparison or ranking:
+
+1. requested dates remain unchanged;
+2. each boundary represents a valuation date;
+3. the effective endpoint is the latest common session available on or before that boundary;
+4. all compared assets and benchmarks use the same effective endpoints;
+5. at least two distinct common endpoints are required;
+6. series are sliced inclusively between effective endpoints;
+7. observation count may remain asset-specific because intermediate sessions may differ.
+
+For YTD, the theoretical starting boundary is January 1 and should resolve to the latest common session on or before January 1, allowing the calculation to use the previous year-end close.
+
+This policy is planned but is not yet current production behavior.
+
+---
+
+## Subsequent Capability Batches
+
+After the performance/horizon/benchmark milestone, the current roadmap is:
+
+### Risk and Dependence
+
+Potential capabilities:
+
+* rolling volatility;
+* drawdown duration and recovery;
+* downside volatility with explicit threshold;
+* beta;
+* tracking error;
+* return/volatility;
+* Calmar;
+* correlation matrix;
+* rolling correlation;
+* covariance.
+
+Sharpe and Sortino should not be introduced with an implicit risk-free rate or target return.
+
+### Momentum and Technical Analytics
+
+Potential capabilities:
+
+* moving averages;
+* above/below moving average;
+* distance to moving average;
+* distance to period high/low;
+* configurable momentum;
+* momentum rankings;
+* deterministic trend classification;
+* best/worst day;
+* positive-session ratio.
+
+### Breadth and Universe Analytics
+
+Potential capabilities:
+
+* percentage of constituents positive;
+* percentage above a moving average;
+* mean/median constituent performance;
+* cross-sectional dispersion;
+* strongest/weakest constituents;
+* ranking by performance, volatility, drawdown, or momentum.
+
+These capabilities must preserve:
+
+* universe snapshot provenance;
+* coverage;
+* exclusions;
+* partial failures.
+
+---
+
+## Longer-Term Direction
+
+Equity Strategist is intended to become the first specialist inside a broader financial reasoning system.
+
+Potential future modules include:
+
+* Fixed Income;
+* FX;
+* Credit;
+* Cross Asset;
+* Structured Products.
 
 The long-term pattern remains:
 
+```text
 Natural language
         |
         v
 Financial reasoning
         |
         v
-Structured analytical plan
+Structured analytical request
+        |
+        v
+Validation
+        |
+        v
+Analytical plan
         |
         v
 Deterministic financial tools
@@ -747,5 +997,15 @@ Structured quantitative evidence
         |
         v
 LLM synthesis
+```
 
-The immediate priority remains to test the Equity Strategist against real analyst questions and expand capabilities only where usage demonstrates value.
+The immediate priority is not to maximize capability count blindly.
+
+The priority is to expand the deterministic analytical toolkit in coherent batches while preserving:
+
+* request fidelity;
+* quantitative authority;
+* traceability;
+* testability;
+* architectural boundaries;
+* useful analyst-facing behavior.

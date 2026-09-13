@@ -8,94 +8,531 @@ Its immediate goal is to provide reliable, deterministic, traceable, and testabl
 
 Its longer-term role is to become one specialist component inside a broader agentic architecture that may include:
 
-- Market News Agent
-- Fixed Income Strategist
-- X-Asset Sales Agent
+* Market News Agent;
+* Fixed Income Strategist;
+* X-Asset Sales Agent.
 
 Equity Strategist must remain independently usable, independently testable, and independently deployable.
 
-The future X-Asset Sales Agent must interact with Equity Strategist through a stable, structured public contract and must not depend on internal implementation details such as:
+A future higher-level agent must interact with Equity Strategist through a stable structured contract and must not depend on internal implementation details such as:
 
-- LangGraph state
-- Yahoo Finance implementation details
-- internal services
-- planner implementation
-- provider-specific objects
-- internal domain reconstruction logic
+* LangGraph state;
+* Yahoo Finance implementation details;
+* internal services;
+* planner implementation;
+* provider-specific objects;
+* internal domain reconstruction logic.
 
-Do not introduce dependencies on future agents until a real integration requirement exists.
+Design Equity Strategist for composition, but keep it decoupled from future agents until a real integration requirement exists.
 
-Design Equity Strategist for composition, but keep it decoupled from the future multi-agent system.
+---
 
-## Project Structure and Architecture
+## Core Design Principle
+
+The architectural principle is:
+
+```text
+Probabilistic intelligence at the top.
+Deterministic financial computation at the bottom.
+```
+
+Conceptually:
+
+```text
+Natural-language question
+        |
+        v
+Understanding
+        |
+        v
+Structured financial intent
+        |
+        v
+Validation
+        |
+        v
+Planning
+        |
+        v
+Deterministic execution
+        |
+        v
+Structured quantitative evidence
+        |
+        v
+Interpretation
+        |
+        v
+User
+```
+
+The LLM determines what the user is asking for and may explain deterministic evidence.
+
+Python is the authoritative source for financial calculations and quantitative facts.
+
+Do not put financial calculations in prompts, LLM interpretation code, or orchestration logic.
+
+---
+
+## Project Structure and Layer Responsibilities
 
 Source lives in `src/equity_strategist/`.
 
-`domain/` defines requests, plans, assets, series, datasets, statuses, and results.
+### `domain/`
 
-`data_providers/` and `universe_providers/` retrieve external data or constituent snapshots.
+Defines stable financial and analytical contracts:
 
-`asset_registry/` and `universe_registry/` define known instruments and universes.
+* requests;
+* plans;
+* capabilities;
+* assets;
+* universes;
+* market series;
+* datasets;
+* validation statuses;
+* structured results;
+* execution results.
 
-`extractors/` normalize provider observations into internal market representations.
+Domain objects must not depend on Yahoo Finance, OpenAI, LangGraph, or concrete infrastructure.
 
-`compute/` implements pure deterministic financial calculations.
+### `data_providers/` and `universe_providers/`
 
-`tools/` expose narrow operational capabilities such as asset resolution or point-in-time price retrieval.
+Retrieve external market data or universe constituent information.
 
-`services/` coordinate acquisition, datasets, calculations, and construction of typed business results.
+Provider-specific representations must not leak into financial services or public specialist contracts.
 
-`understanding/` transforms natural language into structured analysis requests.
+### `asset_registry/` and `universe_registry/`
 
-`strategists/` handle validation, planning, execution, orchestration, and LangGraph integration.
+Provide stable known identities, aliases, and universe definitions.
 
-`interpretation/` transforms structured results and statuses into user-facing responses.
+They are not intended to become proprietary security masters.
 
-`app.py` assembles concrete dependencies.
+### `extractors/`
 
-Keep financial calculations in Python, never in LLM prompts.
+Normalize provider observations into internal market representations.
 
-Lower layers must not depend on the strategist, LangGraph, or LLM.
+### `compute/`
 
-Preserve provider protocols, dependency injection, and typed domain boundaries.
+Contains pure deterministic financial calculations.
 
-Provider-specific representations must not leak into business services or public specialist contracts.
+Functions in this layer should:
 
-The LLM should interpret intent and produce structured requests; it must not become the source of truth for deterministic financial calculations.
+* receive explicit inputs;
+* produce deterministic outputs;
+* avoid network access;
+* avoid orchestration logic;
+* avoid provider-specific types.
 
-Tests belong in `tests/`; live integration checks and demos belong in `scripts/`.
+### `tools/`
 
-Documentation is in `docs/`, notably `architecture_updated.md` and `current_state.md`.
+Expose narrow operational capabilities such as:
 
-Treat code as authoritative when documentation lags, but update documentation when behavior or architecture materially changes.
+* asset resolution;
+* point-in-time price retrieval.
+
+Tools should remain focused and deterministic apart from explicit provider access.
+
+### `services/`
+
+Coordinate deterministic financial workflows:
+
+* market-data acquisition;
+* normalized dataset construction;
+* alignment;
+* financial calculations;
+* typed result construction.
+
+Financial methodology belongs here or in `compute/`, not in the planner, executor, LLM, or graph.
+
+### `understanding/`
+
+Transforms natural-language questions into typed `AnalysisRequest` objects.
+
+Understanding extracts intent. It does not calculate financial results.
+
+### `strategists/`
+
+Handle:
+
+* request validation;
+* planning;
+* deterministic execution coordination;
+* orchestration;
+* LangGraph integration.
+
+### `interpretation/`
+
+Transforms validation states and structured execution evidence into user-facing responses.
+
+### `app.py`
+
+Is the composition root that assembles concrete dependencies.
+
+---
+
+## Capability and Service Boundaries
+
+A `Capability` represents an analytical operation that the planner can select and the executor can execute.
+
+A capability does **not** need to map one-to-one to a service.
+
+A capability may compose several services, and a service may support several capabilities.
+
+Do not create a new capability merely because:
+
+* the user uses a different phrasing;
+* a parameter changes;
+* a horizon changes;
+* ranking direction changes;
+* an existing analytical operation gains a new deterministic option.
+
+Prefer parameterized reusable capabilities when the underlying operation remains conceptually the same.
+
+The planner decides **what analytical operation is required**.
+
+The executor coordinates **how planned operations are invoked and how compatible runtime dependencies can be reused**.
+
+The executor must not become a financial-calculation or market-data-alignment layer.
+
+Financial calculations, market-data alignment, slicing, horizon resolution, and methodology belong in deterministic services and compute functions.
+
+---
+
+## Request Fidelity
+
+Never silently ignore part of the user's request.
+
+Any parameter accepted by the understanding layer must be one of:
+
+1. executed;
+2. explicitly clarified;
+3. explicitly rejected as unsupported.
+
+A request must never be reported as successfully handled if part of its meaning was silently discarded.
+
+Validator, planner, executor, services, and interpretation must remain aligned on supported semantics.
+
+If a feature is only partially supported, encode that limitation explicitly rather than approximating silently.
+
+Examples of request parameters requiring explicit treatment include:
+
+* metrics;
+* assets;
+* universes;
+* benchmark;
+* constraints;
+* ranking direction;
+* top-N;
+* explicit dates;
+* target dates;
+* horizons;
+* performance methodology;
+* rolling windows;
+* requested currency;
+* market periods.
+
+The validator is the authoritative semantic boundary for deciding whether a structured request is:
+
+* `READY`;
+* `NEEDS_CLARIFICATION`;
+* `UNSUPPORTED`.
+
+Intrinsic type and object invariants belong in domain construction.
+
+Do not duplicate the validator's full semantic policy inside the planner or executor.
+
+---
+
+## Quantitative Authority and Evidence
+
+Deterministic Python execution is the authoritative source of quantitative evidence.
+
+The intended model is:
+
+```text
+deterministic calculations
+        ↓
+structured evidence
+        ↓
+LLM reasoning and explanation
+        ↓
+user-facing answer
+```
+
+The LLM may:
+
+* summarize;
+* compare;
+* explain;
+* reason qualitatively from supplied deterministic evidence.
+
+The LLM must not become the authoritative source for:
+
+* prices;
+* returns;
+* volatility;
+* drawdowns;
+* correlations;
+* rankings;
+* benchmark-relative metrics;
+* dates;
+* asset identities;
+* quantitative methodology.
+
+Generated prose is a presentation layer, not an authoritative quantitative source.
+
+Do not ask the LLM to independently recalculate financial metrics.
+
+At this stage, do not introduce a second LLM judge or brittle deterministic prose validator.
+
+Prefer:
+
+* structured evidence;
+* provenance;
+* methodology;
+* auditability;
+* deterministic fallback.
+
+LLM interpretation prompts should prohibit unsupported:
+
+* forecasts;
+* causal claims;
+* external market context;
+* recommendations;
+* invented facts;
+* LLM-generated quantitative calculations.
+
+If LLM interpretation fails, deterministic interpretation is the fallback.
+
+Validation and clarification responses should remain deterministic.
+
+---
+
+## Quantitative Traceability
+
+Every financial result should progressively become auditable.
+
+Structured results should preserve, where relevant:
+
+* requested dates;
+* effective dates;
+* resolved instruments;
+* symbol and name;
+* currency;
+* number of observations;
+* price field;
+* return methodology;
+* annualization convention;
+* frequency;
+* benchmark;
+* universe snapshot;
+* exclusions;
+* data-quality limitations;
+* calculation coverage.
+
+Do not rely on prose alone to communicate methodology.
+
+If the effective calculation period differs from the requested period, expose the difference explicitly.
+
+When several assets are compared or ranked, do not silently calculate them over incompatible effective endpoints.
+
+The alignment policy must be:
+
+* explicit;
+* deterministic;
+* testable;
+* represented in structured results.
+
+When several metrics in one execution require compatible historical data, prefer reusing a coherent execution-level dataset rather than independently fetching the same history for every metric.
+
+Runtime market datasets must not be persisted into LangGraph state.
+
+Do not build a global cache or market-data repository until real usage demonstrates that it is needed.
+
+---
+
+## Financial and Data Conventions
+
+Financial conventions must be explicit and deterministic.
+
+Do not silently change:
+
+* adjusted versus raw prices;
+* simple versus logarithmic returns;
+* annualization factors;
+* date inclusivity;
+* business-day handling;
+* market-calendar alignment;
+* benchmark methodology;
+* currency treatment;
+* universe composition methodology.
+
+When a convention changes:
+
+1. update deterministic tests;
+2. update structured result contracts where necessary;
+3. update interpretation evidence;
+4. update documentation.
+
+Missing or ambiguous market data must follow an explicit policy:
+
+* reject;
+* clarify;
+* degrade with a documented fallback;
+* or return a structured insufficient-data failure.
+
+Do not silently mix:
+
+* inconsistent calendars;
+* different currencies when the requested analysis assumes a common currency;
+* incompatible price conventions;
+* unrelated effective periods.
+
+Yahoo Finance is currently a market-data provider, not an authoritative security master or institutional data source.
+
+---
+
+## Asset Identity
+
+Asset resolution should prefer stable known identities when available.
+
+The intended flow is:
+
+```text
+user asset reference
+        |
+        v
+AssetRegistry
+        |
+    known locally?
+      /     \
+    yes      no
+    |         |
+    v         v
+  Asset   provider fallback
+              |
+         unique match?
+          /       \
+        yes        no
+        |           |
+        v           v
+      Asset     explicit failure
+```
+
+Do not silently select an ambiguous listing.
+
+Provider fallback is intended to broaden real-world coverage without turning the local registry into a proprietary security master.
+
+---
+
+## Universe Semantics
+
+Universe resolution is distinct from asset resolution.
+
+Universe-based historical analysis must clearly distinguish between:
+
+* current constituent snapshots;
+* historical index composition;
+* index-level data;
+* constituent-level data.
+
+Do not imply historical constituent membership when only a current snapshot is available.
+
+Do not call raw constituent performance an index "contribution" unless weights and a valid contribution methodology are available.
+
+Coverage, exclusions, and partial failures should become explicit when universe analytics require them.
+
+---
+
+## State and LangGraph
+
+LangGraph is an orchestration and state-management layer, not a financial-calculation layer.
+
+Keep graph state:
+
+* small;
+* stable;
+* serializable;
+* limited to information required to continue or reconstruct the conversation.
+
+Do not store large runtime objects when identifiers or structured representations are sufficient.
+
+Market datasets and provider objects are runtime dependencies and should remain outside persisted graph state.
+
+Conversation state inside Equity Strategist primarily supports local analytical clarification.
+
+General long-term user memory belongs to a higher-level conversational system.
+
+When new fields are added to persisted graph state:
+
+* preserve backward compatibility with older checkpoints;
+* use explicit defaults when old checkpoints lack the field;
+* test deserialization of historical state shapes.
+
+Do not couple the public specialist contract to LangGraph-specific state structures.
+
+---
+
+## Planner Strategy
+
+`EquityPlanner` is currently deterministic.
+
+This is intentional.
+
+The planner maps validated structured intent into supported capabilities.
+
+The planner may become hybrid or LLM-assisted later when the capability set becomes broad enough to justify additional reasoning.
+
+Do not introduce an LLM planner simply because more capabilities exist.
+
+A future planner change must preserve:
+
+* request fidelity;
+* deterministic execution;
+* explicit capability contracts;
+* testability.
+
+---
 
 ## Public Specialist Contract
 
 The project should evolve toward a stable public interface that allows another agent or application to request an equity analysis and receive a structured result.
 
-The future caller must not need to understand LangGraph, internal services, provider implementations, or planner details.
+A future caller must not need to understand:
 
-Public results should distinguish, where relevant:
+* LangGraph;
+* internal services;
+* provider implementations;
+* internal planner details.
 
-- success
-- clarification required
-- unsupported request
-- insufficient data
-- external provider error
-- partial success
+Public outcomes should distinguish, where relevant:
 
-Public results should expose enough structured information for a caller to understand:
+* success;
+* clarification required;
+* unsupported request;
+* insufficient data;
+* provider failure;
+* internal execution failure;
+* partial success.
 
-- what was requested
-- what was actually calculated
-- which assets or universes were resolved
-- requested period versus effective period
-- methodology and conventions
-- data source and provenance
-- limitations or missing data
-- clarification requirements when the request cannot yet be executed
+Public results should eventually expose enough information to understand:
 
-Do not expose internal LangGraph state, provider objects, or implementation-specific domain objects through the public contract unless they are deliberately promoted to stable public types.
+* what was requested;
+* what was calculated;
+* which assets or universes were resolved;
+* requested versus effective period;
+* methodology;
+* conventions;
+* benchmark;
+* data limitations;
+* exclusions;
+* clarification requirements.
+
+Do not expose internal implementation objects unless they are deliberately promoted to stable public types.
+
+---
+
+## Future Multi-Agent Architecture
 
 The long-term integration target is conceptually:
 
@@ -107,122 +544,15 @@ X-Asset Sales Agent
         +-- Market News Agent
 ```
 
-Equity Strategist must remain usable without the X-Asset Sales Agent.
+Equity Strategist must remain usable independently.
 
-## Request Fidelity
-
-Never silently ignore a user request parameter.
-
-Any parameter accepted by the understanding layer must be one of:
-
-1. executed;
-2. explicitly clarified;
-3. explicitly rejected as unsupported.
-
-A request must never be reported as successfully handled if part of its meaning was silently discarded.
-
-Validator, planner, executor, and interpretation must remain aligned on supported capabilities.
-
-If a capability is only partially supported, encode that limitation explicitly rather than approximating silently.
-
-Examples of parameters requiring explicit handling include benchmark, constraints, ranking direction, top-N requests, requested metrics, date ranges, universes, and asset lists.
-
-## Quantitative Traceability
-
-Every financial result should progressively become auditable.
-
-Prefer structured result objects that preserve, where relevant:
-
-- requested dates
-- effective dates
-- resolved instruments
-- number of observations
-- price type
-- return methodology
-- annualization convention
-- frequency
-- currency
-- data source
-- retrieval timestamp
-- universe snapshot or version
-- exclusions
-- data-quality limitations
-- calculation coverage
-
-Do not rely on prose alone to communicate methodology.
-
-If the effective calculation period differs from the requested period, expose that difference explicitly.
-
-If multiple metrics are calculated for the same request, prefer using a consistent execution-level market-data snapshot where practical so that results are comparable.
-
-## LLM Interpretation and Evidence Authority
-
-Deterministic Python execution is the authoritative source of quantitative
-evidence. The LLM may reason over, compare, summarize, and explain that evidence,
-but generated prose is not itself an authoritative quantitative source.
-
-Do not ask the LLM to calculate financial metrics. Give it only structured facts
-derived from deterministic execution results, and preserve access to that
-evidence so callers can audit dates, instruments, methods, and values.
-
-At this stage, do not add a deterministic validator for generated prose. Prefer
-provenance and auditability of the underlying structured evidence. Keep prompt
-restrictions against unsupported forecasts, causal claims, and external market
-context, and use deterministic interpretation as the fallback when LLM
-interpretation fails.
-
-## Financial and Data Conventions
-
-Financial conventions must be explicit and deterministic.
-
-Do not introduce implicit changes to:
-
-- adjusted versus raw prices
-- simple versus logarithmic returns
-- annualization factors
-- date inclusivity
-- business-day handling
-- market-calendar alignment
-- currency treatment
-- universe composition methodology
-
-When a convention changes, update tests and documentation.
-
-Missing or ambiguous market data must result in an explicit policy: reject, clarify, degrade with documented fallback, or return insufficient-data status.
-
-Do not silently mix inconsistent calendars, currencies, or price conventions.
-
-## State and LangGraph
-
-LangGraph is an orchestration and state-management layer, not a financial-calculation layer.
-
-Financial calculations belong in deterministic services and compute functions.
-
-Keep graph state small, stable, and serializable.
-
-Checkpoint only information necessary to continue or reconstruct a conversation or analysis.
-
-Avoid storing large runtime objects when stable identifiers or structured representations are sufficient.
-
-Conversation memory inside Equity Strategist should primarily support local analytical clarification.
-
-The broader conversational memory of a future X-Asset Sales Agent should remain the responsibility of the higher-level orchestrator unless a concrete requirement demonstrates otherwise.
-
-Do not couple the public specialist contract to LangGraph-specific state structures.
-
-## Future Multi-Agent Architecture
-
-Do not prematurely create shared abstractions for Equity, Fixed Income, Market News, or X-Asset Sales.
+Do not prematurely extract shared abstractions for future specialist agents.
 
 Create shared abstractions only after at least two real implementations reveal a stable common pattern.
 
-Do not move code into a shared package merely because it might be reusable later.
+Prefer a small amount of temporary duplication over premature cross-domain abstractions whose boundaries are not yet understood.
 
-Prefer duplication of a small concept over a premature abstraction whose domain boundaries are not yet understood.
-
-Equity Strategist should be designed for composition, but not coupled to future agents.
-
-When a future specialist is implemented, compare its real requirements with Equity Strategist before extracting common infrastructure.
+---
 
 ## Error Handling
 
@@ -230,168 +560,206 @@ Prefer structured, domain-relevant failures over generic exceptions at public bo
 
 Distinguish, where relevant:
 
-- invalid request
-- clarification required
-- unsupported capability
-- ambiguous asset identity
-- insufficient data
-- provider failure
-- internal execution failure
-- partial success
+* invalid request;
+* clarification required;
+* unsupported capability;
+* ambiguous asset identity;
+* insufficient data;
+* provider failure;
+* internal execution failure;
+* partial success.
 
-Do not convert every failure into generic prose.
+Errors that can reasonably be resolved by the user should retain enough structured context for the conversation layer to request clarification.
 
-Errors that can reasonably be resolved by the user should be surfaced in a form that allows the conversation layer to ask for clarification.
+Do not convert every internal failure into generic prose.
 
-Preserve successful partial results if the public contract explicitly supports partial success; otherwise fail deterministically and consistently.
+Preserve successful partial results only when the public result contract explicitly supports partial success.
+
+---
+
+## Coding Style and Naming
+
+Use:
+
+* Python 3.12;
+* four-space indentation;
+* double-quoted strings;
+* 88-character line limit.
+
+Use:
+
+* `snake_case` for modules and functions;
+* `PascalCase` for classes;
+* `UPPER_SNAKE_CASE` for constants.
+
+Add type annotations.
+
+Prefer:
+
+* typed domain models over raw dictionaries at architectural boundaries;
+* small cohesive services over oversized classes;
+* explicit dependency injection;
+* provider protocols;
+* immutable domain objects where practical;
+* deterministic functions for financial calculations.
+
+Avoid:
+
+* hidden global state;
+* duplicated financial calculations;
+* financial logic in prompts;
+* provider-specific logic leaking into services;
+* large refactors unrelated to the requested feature;
+* dependencies introduced solely to simplify a small local implementation.
+
+---
+
+## Testing Strategy
+
+Tests belong in `tests/`.
+
+Live integration checks, demonstrations, and product evaluation belong in `scripts/`.
+
+Deterministic unit tests must not depend on:
+
+* OpenAI;
+* Yahoo Finance;
+* external network access.
+
+Use fakes, stubs, fixtures, or monkeypatching for external dependencies.
+
+Tests should cover, where relevant:
+
+* financial calculations;
+* invalid inputs;
+* domain invariants;
+* request fidelity;
+* validator behavior;
+* capability routing;
+* planner/executor alignment;
+* clarification flows;
+* ranking semantics;
+* ambiguous identities;
+* missing data;
+* market-data alignment;
+* effective date handling;
+* evidence fidelity;
+* LangGraph state compatibility;
+* public result contracts;
+* important error paths.
+
+For numerical tests, prefer independently derived expected results rather than reproducing implementation logic inside assertions.
+
+When fixing a bug, add a regression test unless there is a clear reason not to.
+
+Do not modify a correct test merely to make an incorrect implementation pass.
+
+The live E2E product battery should be extended as capabilities grow rather than replaced by parallel test frameworks.
+
+Live integration scripts are not part of the deterministic default test suite.
+
+---
 
 ## Development Commands
 
-Use Python 3.12 and run commands from the repository root:
+Run commands from the repository root.
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
+
 python -m pytest
-python -m pytest tests/test_returns.py
 ruff check .
 ruff format --check .
-ruff format .
-python scripts/demo_equity_strategist.py
+git diff --check
 ```
 
-The demo uses rule-based understanding but retrieves live Yahoo data.
-
-`python scripts/e2e_conversation_smoke.py` additionally calls OpenAI.
-
-Verify older scripts against current signatures before using them; several may reference retired APIs.
-
-Do not treat a live integration script as part of the deterministic default test suite.
-
-## Coding Style and Naming
-
-Use four-space indentation, double-quoted strings, and an 88-character line limit.
-
-Ruff targets Python 3.12 and checks imports, common errors, bug risks, and modernization.
-
-Use:
-
-- `snake_case` for modules and functions;
-- `PascalCase` for classes;
-- `UPPER_SNAKE_CASE` for constants.
-
-Add type annotations.
-
-Prefer typed domain models over raw dictionaries at architectural boundaries.
-
-Return structured domain results from services.
-
-Prefer small cohesive services over oversized classes.
-
-Avoid hidden global state.
-
-Avoid duplicated financial calculations.
-
-Do not put provider logic inside services when it belongs behind a provider protocol.
-
-Do not put financial logic in prompts or interpretation code.
-
-Do not introduce dependencies solely because they make a small local task shorter.
-
-## Testing Guidelines
-
-Use pytest with `test_*.py` files and top-level `test_*` functions.
-
-Replace providers and LLM clients with fakes or `monkeypatch`; deterministic unit tests must not depend on external services.
-
-Cover:
-
-- financial calculations;
-- invalid inputs;
-- request fidelity;
-- capability routing;
-- validator/planner/executor alignment;
-- clarification behavior;
-- ambiguous identities;
-- missing data;
-- public result contracts;
-- state isolation;
-- important error paths.
-
-For numerical tests, prefer independently derived expected results rather than reproducing the same implementation logic in the assertion.
-
-Fakes should validate relevant inputs when argument propagation is part of the behavior being tested.
-
-No coverage threshold is currently configured.
-
-Keep live checks separate from the default suite.
-
-When fixing a bug, add a regression test unless there is a clear reason not to.
-
-Do not modify a test merely to make an incorrect implementation pass.
-
-## Definition of Done
-
-Before considering a code task complete:
-
-1. inspect the existing implementation and relevant tests;
-2. explain how the requested change fits the current architecture when the task is substantial;
-3. identify the smallest coherent set of files to modify;
-4. preserve current architectural boundaries unless the task explicitly requires changing them;
-5. implement the requested behavior;
-6. add or update tests for that behavior;
-7. run relevant focused tests during implementation;
-8. run the full deterministic test suite;
-9. run Ruff checks;
-10. run formatting checks;
-11. update documentation if behavior, public contracts, or architecture materially changed;
-12. summarize:
-    - files changed;
-    - behavior changed;
-    - architectural impact;
-    - tests added or updated;
-    - validation results;
-    - remaining risks or limitations.
-
-A task is not complete if the relevant deterministic test suite or Ruff checks fail.
-
-Do not perform broad refactors unless they are explicitly required by the task or a blocking architectural inconsistency makes the requested change unsafe.
-
-If a broader refactor appears desirable but is not required, propose it separately rather than silently including it.
-
-## Commits and Pull Requests
-
-Recent history predominantly uses `feat: <description>`; follow concise, imperative messages with an appropriate prefix.
-
-Keep commits focused.
-
-Prefer feature branches for non-trivial changes.
-
-PRs should explain:
-
-- the problem;
-- changed behavior;
-- architectural impact when relevant;
-- relevant issue;
-- validation commands and results;
-- known limitations.
-
-Update documentation when capabilities, public contracts, or architecture change.
-
-Do not merge unrelated cleanup into a feature PR unless explicitly requested.
-
-## Configuration and Secrets
+Useful live/manual scripts may require external credentials and network access.
 
 Supply `OPENAI_API_KEY` through the environment for LLM runs.
 
+Always verify live scripts against current application signatures before relying on them.
+
+---
+
+## Definition of Done
+
+Before considering a substantial task complete:
+
+1. inspect the current implementation and relevant tests;
+2. understand how the requested behavior fits the existing architecture;
+3. identify the smallest coherent set of files to modify;
+4. preserve architectural boundaries unless a change is explicitly justified;
+5. implement the requested behavior;
+6. add or update deterministic tests;
+7. run focused tests during development;
+8. run the full deterministic test suite;
+9. run `ruff check .`;
+10. run `ruff format --check .`;
+11. run `git diff --check`;
+12. run relevant live E2E checks when external credentials are available;
+13. update documentation if behavior, contracts, or architecture changed;
+14. report:
+
+    * files changed;
+    * behavioral changes;
+    * architectural changes;
+    * tests added or updated;
+    * validation results;
+    * remaining risks or limitations.
+
+A task is not complete when relevant deterministic tests or static checks fail.
+
+Do not perform broad refactors unless they are required by the feature or by a blocking architectural inconsistency.
+
+If a broader refactor seems desirable but is not required, propose it separately.
+
+---
+
+## Commits and Pull Requests
+
+Use focused feature branches for non-trivial changes.
+
+Prefer concise conventional commit messages such as:
+
+```text
+feat: add performance horizons
+fix: preserve ranking direction semantics
+test: extend live e2e product battery
+docs: align architecture guidance
+```
+
+Keep commits coherent.
+
+PRs should explain:
+
+* problem;
+* changed behavior;
+* architectural impact;
+* validation commands and results;
+* known limitations.
+
+Do not mix unrelated cleanup into a feature PR unless explicitly requested.
+
+---
+
+## Configuration and Secrets
+
 Never commit:
 
-- credentials;
-- `.env` files;
-- virtual environments;
-- caches;
-- generated packaging artifacts;
-- local machine-specific configuration.
+* credentials;
+* `.env` files;
+* virtual environments;
+* caches;
+* generated packaging artifacts;
+* local machine-specific configuration.
 
-Configuration that affects model choice, provider behavior, or public application behavior should be explicit and injectable where practical rather than hidden in constructors.
+Configuration that materially affects:
+
+* model choice;
+* provider behavior;
+* calculation methodology;
+* public application behavior
+
+should be explicit and injectable where practical.
