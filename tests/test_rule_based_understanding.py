@@ -3,8 +3,10 @@ from datetime import date
 import pytest
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.request_validation import RequestStatus
@@ -217,3 +219,28 @@ def test_understand_preserves_explicit_assets_with_universe() -> None:
 
     assert validation.status == RequestStatus.NEEDS_CLARIFICATION
     assert any("specify one asset source" in issue for issue in validation.issues)
+
+
+def test_understand_minimal_performance_horizon_and_measure() -> None:
+    request = build_understanding().understand(
+        "Compare LVMH et Hermès en annualized performance over 1M and 3Y",
+        today=date(2026, 9, 13),
+    )
+
+    assert request.performance_measure == PerformanceMeasure.ANNUALIZED
+    assert request.horizons == (
+        AnalysisHorizon.ONE_MONTH,
+        AnalysisHorizon.THREE_YEARS,
+    )
+    assert request.start_date is None
+    assert request.end_date == date(2026, 9, 13)
+
+
+def test_understand_minimal_relative_benchmark() -> None:
+    request = build_understanding().understand(
+        "Compare LVMH et Hermès by relative performance relative to S&P 500 over 1Y",
+        today=date(2026, 9, 13),
+    )
+
+    assert request.performance_measure == PerformanceMeasure.RELATIVE
+    assert request.benchmark == "S&P 500"

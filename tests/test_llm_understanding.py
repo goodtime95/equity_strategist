@@ -3,8 +3,10 @@ import json
 import pytest
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.request_validation import RequestStatus
@@ -149,6 +151,8 @@ def _payload(**overrides: object) -> dict[str, object]:
         "constraints": [],
         "ranking_direction": None,
         "top_n": None,
+        "performance_measure": "total",
+        "horizons": [],
         "unresolved": [],
     }
     payload.update(overrides)
@@ -279,4 +283,97 @@ def test_llm_understanding_preserves_genuine_unsupported_constraint() -> None:
     assert request.constraints == ("EUR-denominated listings only",)
     assert (
         AnalysisRequestValidator().validate(request).status == RequestStatus.UNSUPPORTED
+    )
+
+
+def test_llm_understanding_extracts_horizons_measure_and_benchmark() -> None:
+    client = CapturingOpenAI(
+        _payload(
+            start_date=None,
+            end_date="2026-09-13",
+            benchmark="S&P 500",
+            performance_measure="relative",
+            horizons=["1m", "3m", "ytd", "1y", "3y"],
+        )
+    )
+
+    request = LLMUnderstanding(client=client).understand(
+        "Compare Schneider Electric and Safran's relative performance versus "
+        "the S&P 500 over 1M, 3M, YTD, 1Y and 3Y."
+    )
+
+    assert request.performance_measure == PerformanceMeasure.RELATIVE
+    assert request.benchmark == "S&P 500"
+    assert request.start_date is None
+    assert request.horizons == (
+        AnalysisHorizon.ONE_MONTH,
+        AnalysisHorizon.THREE_MONTHS,
+        AnalysisHorizon.YEAR_TO_DATE,
+        AnalysisHorizon.ONE_YEAR,
+        AnalysisHorizon.THREE_YEARS,
+    )
+    schema = client.responses.calls[0]["text"]["format"]["schema"]
+    assert "performance_measure" in schema["required"]
+    assert "horizons" in schema["required"]
+    assert schema["properties"]["horizons"] == {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "enum": ["1m", "3m", "6m", "ytd", "1y", "3y"],
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("question", "measure"),
+    [
+        (
+            "Compare LVMH and SAP performance with the Euro Stoxx 50 as benchmark "
+            "from 2024-01-01 to 2025-12-31.",
+            PerformanceMeasure.TOTAL,
+        ),
+        (
+            "Show LVMH and SAP annualized performance versus the Euro Stoxx 50 "
+            "benchmark from 2024-01-01 to 2025-12-31.",
+            PerformanceMeasure.ANNUALIZED,
+        ),
+        (
+            "Compare LVMH and SAP's relative performance versus the Euro Stoxx 50 "
+            "from 2024-01-01 to 2025-12-31?",
+            PerformanceMeasure.RELATIVE,
+        ),
+        (
+            "How much did LVMH and SAP outperform the Euro Stoxx 50 in return terms "
+            "from 2024-01-01 to 2025-12-31?",
+            PerformanceMeasure.EXCESS_RETURN,
+        ),
+    ],
+)
+def test_llm_understanding_keeps_benchmark_separate_from_performance_measure(
+    question: str,
+    measure: PerformanceMeasure,
+) -> None:
+    client = CapturingOpenAI(
+        _payload(
+            assets=["LVMH", "SAP"],
+            benchmark="Euro Stoxx 50",
+            performance_measure=measure.value,
+        )
+    )
+
+    request = LLMUnderstanding(client=client).understand(question)
+
+    assert request.benchmark == "Euro Stoxx 50"
+    assert request.performance_measure == measure
+    assert request.constraints == ()
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+
+    call = client.responses.calls[0]
+    instructions = call["instructions"]
+    assert "Naming a benchmark does not" in instructions
+    assert 'benchmark = "Euro Stoxx 50"' in instructions
+    schema = call["text"]["format"]["schema"]
+    assert (
+        "Benchmark presence alone does not change the measure"
+        in schema["properties"]["performance_measure"]["description"]
     )

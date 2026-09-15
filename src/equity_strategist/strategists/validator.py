@@ -3,6 +3,7 @@ from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
 )
 from equity_strategist.domain.request_validation import (
     RequestStatus,
@@ -86,12 +87,43 @@ class AnalysisRequestValidator:
         if not request.metrics:
             issues.append("at least one analysis metric is required")
 
-        if any(metric in self.PERIOD_METRICS for metric in request.metrics):
+        non_performance_period_metrics = any(
+            metric in self.PERIOD_METRICS and metric != AnalysisMetric.PERFORMANCE
+            for metric in request.metrics
+        )
+
+        if request.horizons:
+            if request.start_date is not None:
+                issues.append(
+                    "horizon requests must not include start_date; use end_date as "
+                    "the anchor"
+                )
+            if request.end_date is None:
+                issues.append("end date is required for horizon requests")
+            if non_performance_period_metrics:
+                issues.append(
+                    "performance horizons cannot currently be combined with other "
+                    "period metrics; use an explicit period"
+                )
+        elif any(metric in self.PERIOD_METRICS for metric in request.metrics):
             if request.start_date is None:
                 issues.append("start date is required")
 
             if request.end_date is None:
                 issues.append("end date is required")
+
+        if (
+            request.performance_measure
+            in {
+                PerformanceMeasure.RELATIVE,
+                PerformanceMeasure.EXCESS_RETURN,
+            }
+            and request.benchmark is None
+        ):
+            issues.append(f"{request.performance_measure.value} requires a benchmark")
+
+        if request.benchmark is not None and not request.benchmark.strip():
+            issues.append("benchmark cannot be blank; provide an asset or index")
 
         if AnalysisMetric.PRICE in request.metrics:
             if request.target_date is None:
@@ -131,8 +163,21 @@ class AnalysisRequestValidator:
     ) -> list[str]:
         issues: list[str] = []
 
-        if request.benchmark is not None:
-            issues.append("benchmark analysis is not currently supported")
+        has_performance = AnalysisMetric.PERFORMANCE in request.metrics
+
+        if request.benchmark is not None and not has_performance:
+            issues.append("benchmark is only supported for performance analysis")
+
+        if request.horizons and not has_performance:
+            issues.append("horizons are only supported for performance analysis")
+
+        if (
+            request.performance_measure != PerformanceMeasure.TOTAL
+            and not has_performance
+        ):
+            issues.append(
+                "performance_measure is only supported for performance analysis"
+            )
 
         if request.constraints:
             issues.append("request constraints are not currently supported")
@@ -155,9 +200,13 @@ class AnalysisRequestValidator:
         ):
             issues.append("target_date is only supported for price requests")
 
-        if (request.start_date is not None or request.end_date is not None) and not any(
-            metric in AnalysisRequestValidator.PERIOD_METRICS
-            for metric in request.metrics
+        if (
+            (request.start_date is not None or request.end_date is not None)
+            and not any(
+                metric in AnalysisRequestValidator.PERIOD_METRICS
+                for metric in request.metrics
+            )
+            and not request.horizons
         ):
             issues.append(
                 "start_date and end_date are only supported for period-based metrics"

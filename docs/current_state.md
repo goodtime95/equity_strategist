@@ -86,11 +86,15 @@ Python execution remains the authoritative source of quantitative facts.
 
 The full LLM-powered product path has been exercised through a live E2E battery.
 
-The current product battery contains 19 analyst-style cases and currently passes:
+The product battery contains 26 analyst-style cases. The 19-case baseline passed
+before the performance expansion:
 
 ```text
-19 / 19
+19 / 19 baseline cases
 ```
+
+The seven added horizon, annualization, relative-performance, and excess-return
+cases require a live rerun with an OpenAI API environment.
 
 The battery covers:
 
@@ -110,7 +114,9 @@ The battery covers:
 * missing metric clarification;
 * missing asset clarification;
 * unsupported capability handling;
-* unsupported benchmark handling;
+* executable benchmark performance;
+* relative performance and excess return;
+* standard and multi-horizon performance;
 * unsupported free-form constraints;
 * assets-versus-universe ambiguity;
 * multi-turn clarification.
@@ -142,7 +148,8 @@ The domain layer defines typed contracts including:
 * `Capability`;
 * `AnalysisExecutionResult`;
 * `StepExecutionResult`;
-* `PerformanceComparisonResult`;
+* `PerformanceAnalysisResult`;
+* `PerformancePeriodResult`;
 * `VolatilityComparisonResult`;
 * `CorrelationAnalysisResult`;
 * `DrawdownComparisonResult`;
@@ -186,6 +193,8 @@ The request currently captures concepts including:
 * unresolved information;
 * ranking direction;
 * top-N.
+* performance measure;
+* typed performance horizons.
 
 Current objectives include:
 
@@ -253,7 +262,7 @@ Examples include currently unsupported combinations such as:
 RANK + DRAWDOWN
 ```
 
-and unsupported modifiers such as some benchmark or free-form constraint requests.
+and unsupported modifiers such as free-form constraint requests.
 
 The validator prevents unsupported or incomplete semantics from being silently discarded.
 
@@ -287,6 +296,9 @@ GET + PRICE
     -> PRICE_ON_DATE
 
 COMPARE + PERFORMANCE
+    -> COMPARE_PERFORMANCE
+
+GET/ANALYZE + PERFORMANCE
     -> COMPARE_PERFORMANCE
 
 COMPARE + VOLATILITY
@@ -342,6 +354,9 @@ It currently routes work to services including:
 Execution results remain structured domain objects before interpretation.
 
 The executor coordinates operations but does not own financial calculations.
+For compatible explicit-period price-history steps, it builds one runtime dataset
+and reuses it across performance, volatility, correlation, and drawdown services.
+The dataset is never persisted in LangGraph state.
 
 ---
 
@@ -518,7 +533,8 @@ Implemented deterministic calculations include:
 * annualized performance;
 * cumulative performance series.
 
-Some performance primitives exist in `compute/` but are not yet fully exposed through natural-language capabilities.
+Total and annualized performance are exposed over explicit or typed standard
+horizons. Benchmark-relative and excess-return calculations are also executable.
 
 ### Volatility
 
@@ -567,7 +583,15 @@ For non-trading dates, the engine may use the previous available session accordi
 
 ### Performance Comparison
 
-Compare historical total performance across several assets over an explicit period.
+Analyze total or annualized performance for one or several assets over an explicit
+period or the typed 1M, 3M, 6M, YTD, 1Y, and 3Y horizons. Multiple horizons can be
+calculated from one market-data download.
+
+### Benchmark Performance
+
+An explicit benchmark is calculated and exposed for total or annualized requests.
+Relative performance uses relative wealth evolution. Excess return subtracts the
+benchmark's total period return from the asset's total period return.
 
 ### Volatility Comparison
 
@@ -583,7 +607,8 @@ Compare maximum historical drawdowns.
 
 ### Performance Ranking
 
-Rank explicit assets or a supported universe by historical performance.
+Rank explicit assets or a supported universe by historical performance for every
+requested horizon, with independent highest/lowest and top-N selection.
 
 ### Volatility Ranking
 
@@ -741,15 +766,13 @@ When persisted request fields evolve, deserialization must remain backward-compa
 
 ### Historical Period Alignment
 
-Comparisons currently rely on the available observations for each retrieved series.
-
-Before expanding multi-horizon and benchmark-relative analysis, the engine should adopt an explicit common effective-endpoint policy across compared assets and benchmarks.
-
-This is part of the next milestone.
+Comparisons and rankings use the latest common trading session available on or
+before each requested boundary. Requested and effective dates are both preserved.
+All compared assets and the benchmark use the same effective endpoints.
 
 ### Quantitative Traceability
 
-Current structured results expose core quantitative values but do not yet consistently expose all desired metadata such as:
+Structured price-history results now expose, where relevant:
 
 * requested versus effective dates;
 * observation counts;
@@ -758,7 +781,8 @@ Current structured results expose core quantitative values but do not yet consis
 * annualization conventions;
 * currency.
 
-Improving this traceability is part of the next milestone.
+Provider retrieval timestamps and a generic provenance framework remain outside
+the current scope.
 
 ### Repeated Market-Data Retrieval
 
@@ -768,9 +792,8 @@ A multi-step request such as:
 performance + volatility + drawdown
 ```
 
-may still retrieve overlapping historical data independently for different services.
-
-The next milestone should introduce execution-level dataset reuse where compatible, without turning the executor into a financial-calculation layer.
+reuse one execution-level dataset when the requested period and price convention
+are compatible. Independent service calls still retrieve their own data.
 
 ### Currency
 
@@ -807,9 +830,9 @@ It is not sufficient by itself for institutional-grade:
 
 ---
 
-## Next Milestone
+## Completed Performance Milestone
 
-The next implementation milestone is:
+The implemented milestone is:
 
 ```text
 Stage 0 — Quantitative foundations
@@ -817,7 +840,7 @@ Stage 0 — Quantitative foundations
 Stage 1 — Performance, horizons and benchmark
 ```
 
-This work will be implemented on:
+This work is implemented on:
 
 ```text
 feat/performance-horizons-benchmark
@@ -825,7 +848,7 @@ feat/performance-horizons-benchmark
 
 ### Stage 0 — Quantitative Foundations
 
-Target improvements:
+Implemented foundations:
 
 * explicit common effective endpoints for multi-asset comparisons and rankings;
 * preservation of requested versus effective dates;
@@ -851,7 +874,7 @@ Those responsibilities remain in deterministic services.
 
 ### Stage 1 — Performance, Horizons and Benchmark
 
-Planned typed performance measures:
+Implemented typed performance measures:
 
 ```text
 TOTAL
@@ -860,7 +883,7 @@ RELATIVE
 EXCESS_RETURN
 ```
 
-Planned standard horizons:
+Implemented standard horizons:
 
 ```text
 1M
@@ -871,7 +894,7 @@ YTD
 3Y
 ```
 
-Planned capabilities include:
+Implemented behavior includes:
 
 * total performance;
 * annualized performance;
@@ -887,7 +910,7 @@ No separate capability should be created for each horizon.
 
 Existing performance operations should remain parameterized by structured request fields.
 
-### Planned Endpoint Policy
+### Endpoint Policy
 
 For historical comparison or ranking:
 
@@ -901,7 +924,7 @@ For historical comparison or ranking:
 
 For YTD, the theoretical starting boundary is January 1 and should resolve to the latest common session on or before January 1, allowing the calculation to use the previous year-end close.
 
-This policy is planned but is not yet current production behavior.
+This is the current deterministic service behavior.
 
 ---
 

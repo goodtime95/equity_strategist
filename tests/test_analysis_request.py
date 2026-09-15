@@ -3,9 +3,11 @@ from datetime import date
 import pytest
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
 )
 
 
@@ -108,3 +110,52 @@ def test_analysis_request_preserves_previous_positional_arguments() -> None:
     assert request.unresolved == ("clarify risk",)
     assert request.ranking_direction is None
     assert request.top_n is None
+    assert request.performance_measure == PerformanceMeasure.TOTAL
+    assert request.horizons == ()
+
+
+@pytest.mark.parametrize("measure", ["total", "annualized", object()])
+def test_analysis_request_rejects_invalid_performance_measure(measure: object) -> None:
+    with pytest.raises(TypeError, match="PerformanceMeasure"):
+        AnalysisRequest(
+            objective=AnalysisObjective.COMPARE,
+            performance_measure=measure,  # type: ignore[arg-type]
+        )
+
+
+def test_analysis_request_rejects_invalid_or_duplicate_horizons() -> None:
+    with pytest.raises(TypeError, match="AnalysisHorizon"):
+        AnalysisRequest(
+            objective=AnalysisObjective.COMPARE,
+            horizons=("1m",),  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ValueError, match="duplicates"):
+        AnalysisRequest(
+            objective=AnalysisObjective.COMPARE,
+            horizons=(AnalysisHorizon.ONE_MONTH, AnalysisHorizon.ONE_MONTH),
+        )
+
+
+def test_analysis_request_appends_new_positional_fields() -> None:
+    request = AnalysisRequest(
+        AnalysisObjective.COMPARE,
+        (AnalysisMetric.PERFORMANCE,),
+        ("LVMH", "Hermès"),
+        None,
+        None,
+        date(2025, 1, 5),
+        None,
+        None,
+        "S&P 500",
+        (),
+        None,
+        (),
+        None,
+        None,
+        PerformanceMeasure.RELATIVE,
+        (AnalysisHorizon.ONE_MONTH,),
+    )
+
+    assert request.performance_measure == PerformanceMeasure.RELATIVE
+    assert request.horizons == (AnalysisHorizon.ONE_MONTH,)

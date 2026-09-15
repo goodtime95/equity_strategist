@@ -98,6 +98,12 @@ def test_compare_volatility_ranks_assets() -> None:
     assert result.items[0].symbol == "RMS.PA"
     assert result.items[1].symbol == "MC.PA"
     assert result.items[0].volatility > result.items[1].volatility
+    assert result.effective_start_date == date(2020, 1, 1)
+    assert result.effective_end_date == date(2020, 1, 6)
+    assert result.return_method == "log"
+    assert result.price_field == "adjusted_close"
+    assert result.items[0].currency == "EUR"
+    assert result.items[0].observation_count == 3
 
 
 def test_compare_volatility_requires_two_assets() -> None:

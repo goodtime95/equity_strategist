@@ -251,7 +251,7 @@ def test_interpret_multiple_results() -> None:
 
     answer = strategist.interpret(execution)
 
-    assert "Historical performance comparison" in answer
+    assert "Performance analysis (total)" in answer
     assert "Historical volatility comparison" in answer
 
     assert "LVMH (MC.PA): 20.00%" in answer
@@ -378,7 +378,6 @@ def test_malformed_request_stops_before_planning_and_execution(
 @pytest.mark.parametrize(
     ("request_kwargs", "expected_issue"),
     [
-        ({"benchmark": "STOXX Europe 600"}, "benchmark analysis"),
         ({"constraints": ("EUR only",)}, "constraints"),
     ],
 )

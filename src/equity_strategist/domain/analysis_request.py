@@ -29,6 +29,26 @@ class RankingDirection(StrEnum):
     LOWEST = "lowest"
 
 
+class PerformanceMeasure(StrEnum):
+    """Deterministic performance methodology requested by the user."""
+
+    TOTAL = "total"
+    ANNUALIZED = "annualized"
+    RELATIVE = "relative"
+    EXCESS_RETURN = "excess_return"
+
+
+class AnalysisHorizon(StrEnum):
+    """Supported calendar horizons for performance analysis."""
+
+    ONE_MONTH = "1m"
+    THREE_MONTHS = "3m"
+    SIX_MONTHS = "6m"
+    YEAR_TO_DATE = "ytd"
+    ONE_YEAR = "1y"
+    THREE_YEARS = "3y"
+
+
 @dataclass(frozen=True, slots=True)
 class AnalysisRequest:
     """Structured representation of a user analysis request."""
@@ -51,6 +71,8 @@ class AnalysisRequest:
     unresolved: tuple[str, ...] = ()
     ranking_direction: RankingDirection | None = None
     top_n: int | None = None
+    performance_measure: PerformanceMeasure = PerformanceMeasure.TOTAL
+    horizons: tuple[AnalysisHorizon, ...] = ()
 
     def __post_init__(self) -> None:
         if (
@@ -72,3 +94,12 @@ class AnalysisRequest:
 
             if self.top_n < 1:
                 raise ValueError("top_n must be greater than zero")
+
+        if not isinstance(self.performance_measure, PerformanceMeasure):
+            raise TypeError("performance_measure must be a PerformanceMeasure")
+
+        if any(not isinstance(horizon, AnalysisHorizon) for horizon in self.horizons):
+            raise TypeError("horizons must contain only AnalysisHorizon values")
+
+        if len(self.horizons) != len(set(self.horizons)):
+            raise ValueError("horizons cannot contain duplicates")

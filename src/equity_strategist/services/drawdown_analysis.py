@@ -7,6 +7,10 @@ from equity_strategist.domain.analysis_results import (
     DrawdownComparisonResult,
     DrawdownItem,
 )
+from equity_strategist.domain.market_dataset import (
+    AlignedMarketDataset,
+    MarketDatasetBundle,
+)
 from equity_strategist.services.market_dataset import (
     MarketDatasetService,
 )
@@ -32,9 +36,22 @@ class DrawdownAnalysisService:
 
         dataset = self.market_dataset_service.build_price_dataset(
             asset_queries=asset_queries,
-            start_date=start_date,
+            start_date=MarketDatasetService.history_fetch_start(start_date),
             end_date=end_date,
         )
+        aligned = MarketDatasetService.align_price_dataset(
+            bundle=MarketDatasetBundle(dataset, dataset.symbols),
+            requested_start_date=start_date,
+            requested_end_date=end_date,
+        )
+        return self.compare_aligned(aligned)
+
+    def compare_aligned(
+        self,
+        aligned: AlignedMarketDataset,
+    ) -> DrawdownComparisonResult:
+        """Compare drawdowns using an execution-level aligned dataset."""
+        dataset = aligned.asset_dataset
 
         items: list[DrawdownItem] = []
 
@@ -57,6 +74,8 @@ class DrawdownAnalysisService:
                     peak_date=result.peak_date.date(),
                     trough_date=result.trough_date.date(),
                     recovery_date=recovery_date,
+                    currency=asset.currency,
+                    observation_count=price_series.observation_count,
                 )
             )
 
@@ -68,7 +87,12 @@ class DrawdownAnalysisService:
         )
 
         return DrawdownComparisonResult(
-            start_date=start_date,
-            end_date=end_date,
+            start_date=aligned.requested_start_date,
+            end_date=aligned.requested_end_date,
             items=ranked_items,
+            effective_start_date=aligned.effective_start_date,
+            effective_end_date=aligned.effective_end_date,
+            price_field=next(iter(dataset.series_by_symbol.values())).metadata.get(
+                "field", "adjusted_close"
+            ),
         )

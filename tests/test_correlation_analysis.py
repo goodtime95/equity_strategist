@@ -117,6 +117,13 @@ def test_correlation_analysis_builds_all_pairs() -> None:
         ("MC.PA", "ASML.AS"),
         ("RMS.PA", "ASML.AS"),
     }
+    assert result.effective_start_date == date(2020, 1, 1)
+    assert result.effective_end_date == date(2020, 1, 7)
+    assert result.return_method == "log"
+    assert result.price_field == "adjusted_close"
+    assert all(item.observation_count == 4 for item in result.items)
+    assert all(item.first_currency == "EUR" for item in result.items)
+    assert all(item.second_currency == "EUR" for item in result.items)
 
 
 def test_correlation_analysis_requires_two_assets() -> None:

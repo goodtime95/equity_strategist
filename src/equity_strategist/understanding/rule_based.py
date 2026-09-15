@@ -2,9 +2,11 @@ import re
 from datetime import date, timedelta
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.universe_registry.registry import (
@@ -61,6 +63,11 @@ class RuleBasedUnderstanding:
             if objective == AnalysisObjective.RANK
             else None
         )
+        horizons = self._parse_horizons(clean_question)
+        if horizons:
+            start_date = None
+            end_date = reference_date
+        benchmark = self._parse_benchmark(clean_question)
 
         return AnalysisRequest(
             objective=objective,
@@ -70,8 +77,11 @@ class RuleBasedUnderstanding:
             start_date=start_date,
             end_date=end_date,
             target_date=target_date,
+            benchmark=benchmark,
             ranking_direction=ranking_direction,
             top_n=top_n,
+            performance_measure=self._parse_performance_measure(clean_question),
+            horizons=horizons,
             user_context=clean_question,
         )
 
@@ -277,6 +287,45 @@ class RuleBasedUnderstanding:
             return None
 
         return int(match.group(1))
+
+    @staticmethod
+    def _parse_horizons(question: str) -> tuple[AnalysisHorizon, ...]:
+        lower = question.casefold()
+        mappings = (
+            (r"\bytd\b|year[- ]to[- ]date", AnalysisHorizon.YEAR_TO_DATE),
+            (r"\b1m\b", AnalysisHorizon.ONE_MONTH),
+            (r"\b3m\b", AnalysisHorizon.THREE_MONTHS),
+            (r"\b6m\b", AnalysisHorizon.SIX_MONTHS),
+            (r"\b1y\b", AnalysisHorizon.ONE_YEAR),
+            (r"\b3y\b", AnalysisHorizon.THREE_YEARS),
+        )
+        return tuple(
+            horizon for pattern, horizon in mappings if re.search(pattern, lower)
+        )
+
+    @staticmethod
+    def _parse_performance_measure(question: str) -> PerformanceMeasure:
+        lower = question.casefold()
+        if "annualized" in lower or "annualised" in lower or "annualisée" in lower:
+            return PerformanceMeasure.ANNUALIZED
+        if "excess return" in lower or "surperformance" in lower:
+            return PerformanceMeasure.EXCESS_RETURN
+        if "relative performance" in lower or "performance relative" in lower:
+            return PerformanceMeasure.RELATIVE
+        return PerformanceMeasure.TOTAL
+
+    @staticmethod
+    def _parse_benchmark(question: str) -> str | None:
+        lower = question.casefold()
+        if not any(
+            marker in lower
+            for marker in ("benchmark", "relative to", "relative à", "excess")
+        ):
+            return None
+        for name in ("S&P 500", "CAC 40", "Euro Stoxx 50"):
+            if name.casefold() in lower:
+                return name
+        return None
 
     def _parse_universe(
         self,

@@ -8,9 +8,11 @@ from openai import OpenAI
 from equity_strategist.app import build_llm_equity_strategist
 from equity_strategist.domain.analysis_plan import Capability
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.request_validation import RequestStatus
@@ -39,6 +41,8 @@ class ExpectedBehavior:
     requires_constraints: bool = False
     capabilities: tuple[Capability, ...] = ()
     issue_contains: tuple[str, ...] = ()
+    performance_measure: PerformanceMeasure = PerformanceMeasure.TOTAL
+    horizons: tuple[AnalysisHorizon, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,6 +284,125 @@ CASES = (
         ),
     ),
     E2ECase(
+        name="ytd_performance",
+        question=(
+            "Compare Schneider Electric and Safran by YTD performance as of 2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("Schneider Electric", "Safran"),
+            status=RequestStatus.READY,
+            horizons=(AnalysisHorizon.YEAR_TO_DATE,),
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="standard_performance_horizons",
+        question=(
+            "Compare Schneider Electric and Safran's total performance over 1M, "
+            "3M, 6M, 1Y and 3Y as of 2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("Schneider Electric", "Safran"),
+            status=RequestStatus.READY,
+            horizons=(
+                AnalysisHorizon.ONE_MONTH,
+                AnalysisHorizon.THREE_MONTHS,
+                AnalysisHorizon.SIX_MONTHS,
+                AnalysisHorizon.ONE_YEAR,
+                AnalysisHorizon.THREE_YEARS,
+            ),
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="annualized_performance",
+        question=(
+            "Compare the annualized performance of Siemens and SAP over 3Y as "
+            "of 2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("Siemens", "SAP"),
+            status=RequestStatus.READY,
+            performance_measure=PerformanceMeasure.ANNUALIZED,
+            horizons=(AnalysisHorizon.THREE_YEARS,),
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="top_n_selected_horizon",
+        question=(
+            "Show the top 2 of LVMH, SAP and Siemens by 6M performance as of "
+            "2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.RANK,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("LVMH", "SAP", "Siemens"),
+            status=RequestStatus.READY,
+            ranking_direction=RankingDirection.HIGHEST,
+            top_n=2,
+            horizons=(AnalysisHorizon.SIX_MONTHS,),
+            capabilities=(Capability.RANK_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="bottom_n_selected_horizon",
+        question=(
+            "Show the bottom 2 of LVMH, SAP and Siemens by 1Y performance as of "
+            "2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.RANK,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("LVMH", "SAP", "Siemens"),
+            status=RequestStatus.READY,
+            ranking_direction=RankingDirection.LOWEST,
+            top_n=2,
+            horizons=(AnalysisHorizon.ONE_YEAR,),
+            capabilities=(Capability.RANK_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="relative_performance",
+        question=(
+            "Compare Schneider Electric and Safran's relative performance versus "
+            "the S&P 500 over 1Y as of 2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("Schneider Electric", "Safran"),
+            status=RequestStatus.READY,
+            benchmark="S&P 500",
+            performance_measure=PerformanceMeasure.RELATIVE,
+            horizons=(AnalysisHorizon.ONE_YEAR,),
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
+        name="excess_return",
+        question=(
+            "Compare Schneider Electric and Safran's excess return over the "
+            "S&P 500 over 1Y as of 2025-12-31."
+        ),
+        expected=ExpectedBehavior(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("Schneider Electric", "Safran"),
+            status=RequestStatus.READY,
+            benchmark="S&P 500",
+            performance_measure=PerformanceMeasure.EXCESS_RETURN,
+            horizons=(AnalysisHorizon.ONE_YEAR,),
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
+        ),
+    ),
+    E2ECase(
         name="ambiguous_risk",
         question=(
             "Compare Schneider Electric and Safran by performance and risk from "
@@ -332,18 +455,18 @@ CASES = (
         ),
     ),
     E2ECase(
-        name="unsupported_benchmark",
+        name="benchmark_performance",
         question=(
             "Compare Schneider Electric and Safran by historical performance "
-            "against the STOXX Europe 600 benchmark from 2024-01-01 to 2025-12-31."
+            "against the S&P 500 benchmark from 2024-01-01 to 2025-12-31."
         ),
         expected=ExpectedBehavior(
             objective=AnalysisObjective.COMPARE,
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Schneider Electric", "Safran"),
-            status=RequestStatus.UNSUPPORTED,
-            benchmark="STOXX Europe 600",
-            issue_contains=("benchmark",),
+            status=RequestStatus.READY,
+            benchmark="S&P 500",
+            capabilities=(Capability.COMPARE_PERFORMANCE,),
         ),
     ),
     E2ECase(
@@ -427,6 +550,8 @@ def _request_payload(request: AnalysisRequest) -> dict[str, object]:
             else None
         ),
         "top_n": request.top_n,
+        "performance_measure": request.performance_measure.value,
+        "horizons": [horizon.value for horizon in request.horizons],
         "unresolved": list(request.unresolved),
     }
 
@@ -510,6 +635,12 @@ def _check_state(
         ),
         (request.top_n == expected.top_n, "top_n", request.top_n),
         (request.benchmark == expected.benchmark, "benchmark", request.benchmark),
+        (
+            request.performance_measure == expected.performance_measure,
+            "performance_measure",
+            request.performance_measure,
+        ),
+        (request.horizons == expected.horizons, "horizons", request.horizons),
     )
 
     for matches, field, actual in request_checks:

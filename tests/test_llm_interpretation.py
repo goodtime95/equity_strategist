@@ -18,17 +18,22 @@ from equity_strategist.domain.analysis_plan import (
     PlanStep,
 )
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
 )
 from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
     CorrelationItem,
     DrawdownComparisonResult,
     DrawdownItem,
+    PerformanceAnalysisResult,
+    PerformanceBenchmark,
     PerformanceComparisonResult,
     PerformanceItem,
+    PerformancePeriodResult,
     RankingItem,
     RankingResult,
     VolatilityComparisonResult,
@@ -114,6 +119,21 @@ def _execution(
     return AnalysisExecutionResult(plan=plan, step_results=step_results)
 
 
+def _assert_contains(actual: object, expected: object) -> None:
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict)
+        for key, value in expected.items():
+            _assert_contains(actual[key], value)
+        return
+    if isinstance(expected, list):
+        assert isinstance(actual, list)
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected, strict=True):
+            _assert_contains(actual_item, expected_item)
+        return
+    assert actual == expected
+
+
 def test_serialize_execution_evidence_preserves_deterministic_facts() -> None:
     ranking = RankingResult(
         metric="performance",
@@ -144,42 +164,45 @@ def test_serialize_execution_evidence_preserves_deterministic_facts() -> None:
         )
     )
 
-    assert evidence == {
-        "steps": [
-            {
-                "capability": "rank_performance",
-                "result": {
-                    "type": "ranking",
-                    "metric": "performance",
-                    "start_date": "2024-01-01",
-                    "end_date": "2025-01-01",
-                    "items": [
-                        {
-                            "rank": 1,
-                            "symbol": "MC.PA",
-                            "name": "LVMH",
-                            "value": "0.123456789",
-                        }
-                    ],
+    _assert_contains(
+        evidence,
+        {
+            "steps": [
+                {
+                    "capability": "rank_performance",
+                    "result": {
+                        "type": "ranking",
+                        "metric": "performance",
+                        "start_date": "2024-01-01",
+                        "end_date": "2025-01-01",
+                        "items": [
+                            {
+                                "rank": 1,
+                                "symbol": "MC.PA",
+                                "name": "LVMH",
+                                "value": "0.123456789",
+                            }
+                        ],
+                    },
                 },
-            },
-            {
-                "capability": "price_on_date",
-                "result": {
-                    "type": "price_on_date",
-                    "metric": "price",
-                    "symbol": "RMS.PA",
-                    "name": "Hermès",
-                    "currency": "EUR",
-                    "requested_date": "2025-01-05",
-                    "effective_date": "2025-01-03",
-                    "price": "2314.90",
-                    "price_type": "close",
-                    "used_previous_session": True,
+                {
+                    "capability": "price_on_date",
+                    "result": {
+                        "type": "price_on_date",
+                        "metric": "price",
+                        "symbol": "RMS.PA",
+                        "name": "Hermès",
+                        "currency": "EUR",
+                        "requested_date": "2025-01-05",
+                        "effective_date": "2025-01-03",
+                        "price": "2314.90",
+                        "price_type": "close",
+                        "used_previous_session": True,
+                    },
                 },
-            },
-        ]
-    }
+            ]
+        },
+    )
 
 
 @pytest.mark.parametrize(
@@ -193,17 +216,9 @@ def test_serialize_execution_evidence_preserves_deterministic_facts() -> None:
                 (PerformanceItem("MC.PA", "LVMH", 0.2),),
             ),
             {
-                "type": "performance_comparison",
+                "type": "performance_analysis",
                 "metric": "performance",
-                "start_date": "2024-01-01",
-                "end_date": "2025-01-01",
-                "items": [
-                    {
-                        "symbol": "MC.PA",
-                        "name": "LVMH",
-                        "value": "0.2",
-                    }
-                ],
+                "measure": "total",
             },
         ),
         (
@@ -298,7 +313,7 @@ def test_serialize_execution_evidence_supports_comparison_results(
 
     serialized_result = evidence["steps"][0]["result"]
 
-    assert serialized_result == expected_result
+    _assert_contains(serialized_result, expected_result)
 
 
 def test_llm_interpretation_invokes_responses_with_only_evidence() -> None:
@@ -395,3 +410,95 @@ def test_composition_roots_select_the_expected_interpretation() -> None:
     assert isinstance(llm.interpretation, LLMInterpretation)
     assert llm.understanding.client is client
     assert llm.interpretation.client is client
+
+
+def test_performance_evidence_preserves_relative_inputs_and_methodology() -> None:
+    result = PerformanceAnalysisResult(
+        measure=PerformanceMeasure.RELATIVE,
+        price_field="adjusted_close",
+        return_method="simple",
+        periods=(
+            PerformancePeriodResult(
+                horizon=AnalysisHorizon.ONE_YEAR,
+                requested_start_date=date(2024, 1, 5),
+                requested_end_date=date(2025, 1, 5),
+                effective_start_date=date(2024, 1, 4),
+                effective_end_date=date(2025, 1, 3),
+                benchmark=PerformanceBenchmark(
+                    symbol="^GSPC",
+                    name="S&P 500",
+                    currency="USD",
+                    observation_count=251,
+                    total_performance=0.1,
+                    value=0.1,
+                ),
+                items=(
+                    PerformanceItem(
+                        symbol="MC.PA",
+                        name="LVMH",
+                        value=1.2 / 1.1 - 1.0,
+                        currency="EUR",
+                        observation_count=250,
+                        total_performance=0.2,
+                        asset_performance=0.2,
+                        benchmark_performance=0.1,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    evidence = serialize_execution_evidence(
+        _execution(StepExecutionResult(Capability.COMPARE_PERFORMANCE, result))
+    )["steps"][0]["result"]
+
+    assert evidence["measure"] == "relative"
+    assert evidence["price_field"] == "adjusted_close"
+    assert evidence["return_method"] == "simple"
+    period = evidence["periods"][0]
+    assert period["requested_start_date"] == "2024-01-05"
+    assert period["effective_start_date"] == "2024-01-04"
+    assert period["benchmark"]["total_performance"] == "0.1"
+    item = period["items"][0]
+    assert item["currency"] == "EUR"
+    assert item["observation_count"] == 250
+    assert item["asset_performance"] == "0.2"
+    assert item["benchmark_performance"] == "0.1"
+    assert item["value"] == str(1.2 / 1.1 - 1.0)
+
+
+def test_correlation_evidence_preserves_endpoint_and_asset_metadata() -> None:
+    result = CorrelationAnalysisResult(
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        effective_start_date=date(2023, 12, 29),
+        effective_end_date=date(2024, 12, 31),
+        price_field="adjusted_close",
+        return_method="log",
+        items=(
+            CorrelationItem(
+                first_symbol="MC.PA",
+                first_name="LVMH",
+                second_symbol="SAP.DE",
+                second_name="SAP",
+                correlation=0.42,
+                observation_count=250,
+                first_currency="EUR",
+                second_currency="EUR",
+            ),
+        ),
+    )
+
+    evidence = serialize_execution_evidence(
+        _execution(StepExecutionResult(Capability.ANALYZE_CORRELATION, result))
+    )["steps"][0]["result"]
+
+    assert evidence["start_date"] == "2024-01-01"
+    assert evidence["effective_start_date"] == "2023-12-29"
+    assert evidence["effective_end_date"] == "2024-12-31"
+    assert evidence["price_field"] == "adjusted_close"
+    assert evidence["return_method"] == "log"
+    item = evidence["items"][0]
+    assert item["observation_count"] == 250
+    assert item["first_currency"] == "EUR"
+    assert item["second_currency"] == "EUR"

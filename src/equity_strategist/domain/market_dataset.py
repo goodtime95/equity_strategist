@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 
 from equity_strategist.domain.market_series import MarketSeries
 
@@ -34,3 +35,36 @@ class MarketDataset:
             return self.series_by_symbol[symbol]
         except KeyError as exc:
             raise KeyError(f"symbol not found in dataset: {symbol}") from exc
+
+    def select(self, symbols: tuple[str, ...]) -> "MarketDataset":
+        """Return a dataset containing the requested existing symbols."""
+        return MarketDataset(
+            series_by_symbol={symbol: self.get(symbol) for symbol in symbols},
+            universe=self.universe,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AlignedMarketDataset:
+    """Runtime price dataset sliced to common effective endpoints."""
+
+    dataset: MarketDataset
+    requested_start_date: date
+    requested_end_date: date
+    effective_start_date: date
+    effective_end_date: date
+    asset_symbols: tuple[str, ...]
+    benchmark_symbol: str | None = None
+
+    @property
+    def asset_dataset(self) -> MarketDataset:
+        return self.dataset.select(self.asset_symbols)
+
+
+@dataclass(frozen=True, slots=True)
+class MarketDatasetBundle:
+    """Unaligned runtime dataset with explicit analytical roles."""
+
+    dataset: MarketDataset
+    asset_symbols: tuple[str, ...]
+    benchmark_symbol: str | None = None

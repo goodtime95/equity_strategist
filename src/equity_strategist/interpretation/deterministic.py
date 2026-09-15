@@ -4,7 +4,7 @@ from equity_strategist.domain.analysis_execution import (
 from equity_strategist.domain.analysis_results import (
     CorrelationAnalysisResult,
     DrawdownComparisonResult,
-    PerformanceComparisonResult,
+    PerformanceAnalysisResult,
     RankingResult,
     VolatilityComparisonResult,
 )
@@ -39,7 +39,7 @@ class DeterministicInterpretation:
         if isinstance(result, PriceOnDateResult):
             return self._interpret_price(result)
 
-        if isinstance(result, PerformanceComparisonResult):
+        if isinstance(result, PerformanceAnalysisResult):
             return self._interpret_performance(result)
 
         if isinstance(result, CorrelationAnalysisResult):
@@ -92,18 +92,26 @@ class DeterministicInterpretation:
 
     @staticmethod
     def _interpret_performance(
-        result: PerformanceComparisonResult,
+        result: PerformanceAnalysisResult,
     ) -> str:
-        lines = [
-            (
-                "Historical performance comparison "
-                f"from {result.start_date} to {result.end_date}:"
+        lines = [f"Performance analysis ({result.measure.value}):"]
+        for period in result.periods:
+            label = (
+                period.horizon.value.upper() if period.horizon else "Explicit period"
             )
-        ]
-
-        for rank, item in enumerate(result.items, start=1):
-            name = item.name or item.symbol
-            lines.append(f"{rank}. {name} ({item.symbol}): {item.performance:.2%}")
+            lines.append(
+                f"{label}: {period.effective_start_date} to {period.effective_end_date}"
+            )
+            if period.benchmark is not None:
+                benchmark_name = period.benchmark.name or period.benchmark.symbol
+                lines.append(
+                    f"Benchmark {benchmark_name} ({period.benchmark.symbol}): "
+                    f"{period.benchmark.value:.2%}"
+                )
+            for position, item in enumerate(period.items, start=1):
+                name = item.name or item.symbol
+                prefix = item.rank if item.rank is not None else position
+                lines.append(f"{prefix}. {name} ({item.symbol}): {item.value:.2%}")
 
         return "\n".join(lines)
 

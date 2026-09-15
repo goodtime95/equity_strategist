@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from equity_strategist.domain.analysis_plan import Capability
 from equity_strategist.domain.analysis_request import (
     AnalysisMetric,
@@ -158,3 +160,24 @@ def test_plan_three_metric_comparison() -> None:
         Capability.COMPARE_VOLATILITY,
         Capability.COMPARE_DRAWDOWN,
     )
+
+
+@pytest.mark.parametrize(
+    "objective",
+    [AnalysisObjective.GET, AnalysisObjective.ANALYZE],
+)
+def test_single_asset_performance_reuses_performance_capability(
+    objective: AnalysisObjective,
+) -> None:
+    request = AnalysisRequest(
+        objective=objective,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH",),
+        end_date=date(2025, 1, 5),
+        horizons=(),
+        start_date=date(2024, 1, 1),
+    )
+
+    plan = EquityPlanner().plan(request)
+
+    assert plan.steps[0].capability == Capability.COMPARE_PERFORMANCE

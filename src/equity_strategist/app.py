@@ -117,6 +117,7 @@ def _build_equity_pipeline(
 
     ranking_analysis_service = RankingAnalysisService(
         market_dataset_service=market_dataset_service,
+        performance_analysis_service=performance_analysis_service,
     )
 
     universe_constituent_service = UniverseConstituentService(
@@ -141,6 +142,7 @@ def _build_equity_pipeline(
         market_query_service=market_query_service,
         universe_constituent_service=(universe_constituent_service),
         universe_asset_resolver=(universe_asset_resolver),
+        market_dataset_service=market_dataset_service,
     )
 
     return EquityStrategist(

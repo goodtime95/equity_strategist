@@ -15,6 +15,14 @@ class EquityPlanner:
 
     CAPABILITY_MAP = {
         (
+            AnalysisObjective.GET,
+            AnalysisMetric.PERFORMANCE,
+        ): Capability.COMPARE_PERFORMANCE,
+        (
+            AnalysisObjective.ANALYZE,
+            AnalysisMetric.PERFORMANCE,
+        ): Capability.COMPARE_PERFORMANCE,
+        (
             AnalysisObjective.COMPARE,
             AnalysisMetric.PERFORMANCE,
         ): Capability.COMPARE_PERFORMANCE,

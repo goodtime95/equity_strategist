@@ -12,9 +12,11 @@ from equity_strategist.domain.analysis_plan import (
     PlanStep,
 )
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.analysis_results import (
@@ -22,6 +24,7 @@ from equity_strategist.domain.analysis_results import (
     CorrelationItem,
     DrawdownComparisonResult,
     DrawdownItem,
+    PerformanceAnalysisResult,
     PerformanceComparisonResult,
     PerformanceItem,
     RankingItem,
@@ -90,12 +93,19 @@ class FakeMarketQueryService:
 
 
 class FakePerformanceAnalysisService:
+    def __init__(self):
+        self.calls = []
+
     def compare(
         self,
         asset_queries,
         start_date,
         end_date,
+        performance_measure=PerformanceMeasure.TOTAL,
+        horizons=(),
+        benchmark=None,
     ):
+        self.calls.append((performance_measure, horizons, benchmark))
         return PerformanceComparisonResult(
             start_date=start_date,
             end_date=end_date,
@@ -178,10 +188,14 @@ class FakeRankingAnalysisService:
         end_date,
         ranking_direction=RankingDirection.HIGHEST,
         top_n=None,
+        performance_measure=PerformanceMeasure.TOTAL,
+        horizons=(),
+        benchmark=None,
     ):
-        self.calls.append(
-            ("performance", ranking_direction, top_n, tuple(asset_queries))
-        )
+        call = ("performance", ranking_direction, top_n, tuple(asset_queries))
+        if performance_measure != PerformanceMeasure.TOTAL or horizons or benchmark:
+            call += (performance_measure, horizons, benchmark)
+        self.calls.append(call)
         return RankingResult(
             metric="performance",
             start_date=start_date,
@@ -216,6 +230,9 @@ class FakeRankingAnalysisService:
         universe=None,
         ranking_direction=RankingDirection.HIGHEST,
         top_n=None,
+        performance_measure=PerformanceMeasure.TOTAL,
+        horizons=(),
+        benchmark=None,
     ):
         self.calls.append(("universe", ranking_direction, top_n, universe))
         return RankingResult(
@@ -434,7 +451,7 @@ def test_execute_performance_plan():
 
     assert isinstance(
         performance_result,
-        PerformanceComparisonResult,
+        PerformanceAnalysisResult,
     )
     assert len(performance_result.items) == 2
     assert performance_result.items[0].symbol == "MC.PA"
@@ -602,3 +619,60 @@ def test_execute_universe_ranking_forwards_direction_and_top_n() -> None:
     assert executor.ranking_analysis_service.calls == [
         ("universe", RankingDirection.LOWEST, 1, "Luxury Europe")
     ]
+
+
+def test_execute_forwards_performance_horizons_measure_and_benchmark() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        end_date=date(2025, 1, 5),
+        benchmark="S&P 500",
+        performance_measure=PerformanceMeasure.RELATIVE,
+        horizons=(AnalysisHorizon.ONE_MONTH, AnalysisHorizon.ONE_YEAR),
+    )
+    plan = AnalysisPlan(
+        request=request,
+        steps=(PlanStep(capability=Capability.COMPARE_PERFORMANCE),),
+    )
+    executor = build_executor()
+
+    executor.execute(plan)
+
+    assert executor.performance_analysis_service.calls == [
+        (
+            PerformanceMeasure.RELATIVE,
+            (AnalysisHorizon.ONE_MONTH, AnalysisHorizon.ONE_YEAR),
+            "S&P 500",
+        )
+    ]
+
+
+def test_execute_forwards_performance_ranking_controls_per_horizon() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès", "ASML"),
+        end_date=date(2025, 1, 5),
+        ranking_direction=RankingDirection.LOWEST,
+        top_n=2,
+        performance_measure=PerformanceMeasure.ANNUALIZED,
+        horizons=(AnalysisHorizon.THREE_MONTHS,),
+    )
+    plan = AnalysisPlan(
+        request=request,
+        steps=(PlanStep(capability=Capability.RANK_PERFORMANCE),),
+    )
+    executor = build_executor()
+
+    executor.execute(plan)
+
+    assert executor.ranking_analysis_service.calls[0] == (
+        "performance",
+        RankingDirection.LOWEST,
+        2,
+        ("LVMH", "Hermès", "ASML"),
+        PerformanceMeasure.ANNUALIZED,
+        (AnalysisHorizon.THREE_MONTHS,),
+        None,
+    )

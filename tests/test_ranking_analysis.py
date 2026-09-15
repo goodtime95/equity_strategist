@@ -139,8 +139,8 @@ def test_rank_volatility() -> None:
             "Hermès",
             "ASML",
         ],
-        start_date=date(2024, 1, 1),
-        end_date=date(2024, 12, 31),
+        start_date=date(2020, 1, 1),
+        end_date=date(2020, 1, 7),
     )
 
     assert result.metric == "volatility"

@@ -84,6 +84,11 @@ def test_drawdown_analysis_ranks_worst_drawdown_first() -> None:
     assert result.items[0].symbol == "MC.PA"
     assert result.items[1].symbol == "RMS.PA"
     assert result.items[0].maximum_drawdown < result.items[1].maximum_drawdown
+    assert result.effective_start_date == date(2020, 1, 1)
+    assert result.effective_end_date == date(2020, 1, 7)
+    assert result.price_field == "adjusted_close"
+    assert result.items[0].currency == "EUR"
+    assert result.items[0].observation_count == 5
 
 
 def test_drawdown_analysis_requires_two_assets() -> None:

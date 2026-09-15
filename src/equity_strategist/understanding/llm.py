@@ -4,9 +4,11 @@ from datetime import date
 from openai import OpenAI
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 
@@ -86,6 +88,22 @@ ANALYSIS_REQUEST_SCHEMA = {
             "type": ["integer", "null"],
             "minimum": 1,
         },
+        "performance_measure": {
+            "type": "string",
+            "enum": ["total", "annualized", "relative", "excess_return"],
+            "description": (
+                "Benchmark presence alone does not change the measure. Use total "
+                "unless annualized, relative performance, or excess return is "
+                "explicitly requested."
+            ),
+        },
+        "horizons": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["1m", "3m", "6m", "ytd", "1y", "3y"],
+            },
+        },
         "unresolved": {
             "type": "array",
             "items": {
@@ -105,6 +123,8 @@ ANALYSIS_REQUEST_SCHEMA = {
         "constraints",
         "ranking_direction",
         "top_n",
+        "performance_measure",
+        "horizons",
         "unresolved",
     ],
     "additionalProperties": False,
@@ -163,6 +183,12 @@ class LLMUnderstanding:
                 else None
             ),
             top_n=payload["top_n"],
+            performance_measure=PerformanceMeasure(
+                payload.get("performance_measure", PerformanceMeasure.TOTAL.value)
+            ),
+            horizons=tuple(
+                AnalysisHorizon(horizon) for horizon in payload.get("horizons", [])
+            ),
             user_context=question,
             unresolved=tuple(payload["unresolved"]),
         )
@@ -205,6 +231,8 @@ class LLMUnderstanding:
                 else None
             ),
             "top_n": previous_request.top_n,
+            "performance_measure": previous_request.performance_measure.value,
+            "horizons": [horizon.value for horizon in previous_request.horizons],
             "unresolved": list(previous_request.unresolved),
         }
 
@@ -248,6 +276,12 @@ class LLMUnderstanding:
                 else None
             ),
             top_n=payload["top_n"],
+            performance_measure=PerformanceMeasure(
+                payload.get("performance_measure", PerformanceMeasure.TOTAL.value)
+            ),
+            horizons=tuple(
+                AnalysisHorizon(horizon) for horizon in payload.get("horizons", [])
+            ),
             user_context=clarification,
             unresolved=tuple(payload["unresolved"]),
         )
@@ -324,7 +358,10 @@ Rules:
 
 12. Leave ranking_direction and top_n null for non-ranking requests.
 
-13. Preserve any requested benchmark in benchmark.
+13. Preserve any requested benchmark in benchmark. Naming a benchmark does not
+    itself request relative performance or excess return. For total or annualized
+    performance, preserve the benchmark so its own performance is calculated and
+    exposed alongside the asset results.
 
 14. Put only genuine additional analytical restrictions that are not already
     represented by another AnalysisRequest field in constraints. Examples include
@@ -339,6 +376,19 @@ Rules:
     These phrases are not constraints. The downstream engine's standard price
     convention remains authoritative; do not create a price-type constraint or
     unresolved item.
+
+16. For performance, set performance_measure to total unless the user explicitly
+    requests annualized performance, relative performance, or excess return.
+    A comparison "with", "against", or "versus" a benchmark alone remains total
+    performance; it does not request a relative-wealth calculation. Use relative
+    only for explicit relative performance. Use excess_return for an explicit
+    return difference or outperformance in return terms. Preserve the reference
+    asset or index in benchmark independently of performance_measure.
+
+17. Extract explicit standard performance horizons as one or more of 1m, 3m,
+    6m, ytd, 1y, and 3y. For horizon requests set start_date to null and resolve
+    end_date to the requested anchor date, or today when no other anchor is given.
+    For an explicit date interval leave horizons empty.
 
 Objective selection rules:
 
@@ -379,6 +429,20 @@ Ranking direction examples:
 
 "Show the bottom 5 performers"
 -> ranking_direction = lowest, top_n = 5
+
+Performance measure examples:
+
+"Compare LVMH performance with the Euro Stoxx 50 as benchmark"
+-> performance_measure = total, benchmark = "Euro Stoxx 50"
+
+"Show LVMH annualized performance versus the Euro Stoxx 50 benchmark"
+-> performance_measure = annualized, benchmark = "Euro Stoxx 50"
+
+"What is LVMH's relative performance versus the Euro Stoxx 50?"
+-> performance_measure = relative, benchmark = "Euro Stoxx 50"
+
+"How much did LVMH outperform the Euro Stoxx 50 in return terms?"
+-> performance_measure = excess_return, benchmark = "Euro Stoxx 50"
 
 Examples:
 
@@ -480,7 +544,8 @@ Entity extraction rules:
     metrics unless the user explicitly asks to replace them.
 
     7. Preserve assets, universe, dates, benchmark, constraints,
-    ranking_direction and top_n unless the clarification explicitly changes them.
+    ranking_direction, top_n, performance_measure and horizons unless the
+    clarification explicitly changes them.
 
     8. Do not perform financial calculations.
 
@@ -499,6 +564,13 @@ Entity extraction rules:
     13. Set ranking_direction only when the user explicitly requests an ordering
     direction. A generic rank request leaves it null; do not infer "highest" from
     objective = rank alone.
+
+    14. Preserve the distinction between total, annualized, relative, and excess
+    return performance. A benchmark alone does not change total or annualized
+    performance into relative performance. Set relative or excess_return only
+    when the user explicitly asks for that calculation. Standard horizons are
+    1m, 3m, 6m, ytd, 1y, and 3y. Horizon requests use start_date = null and
+    end_date as their anchor.
 
     Supported objectives:
     - get

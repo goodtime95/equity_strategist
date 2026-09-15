@@ -8,9 +8,11 @@ from equity_strategist.domain.analysis_execution import (
 )
 from equity_strategist.domain.analysis_plan import AnalysisPlan
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.request_validation import (
@@ -38,6 +40,8 @@ class AnalysisRequestState(TypedDict):
     constraints: list[str]
     ranking_direction: NotRequired[str | None]
     top_n: NotRequired[int | None]
+    performance_measure: NotRequired[str]
+    horizons: NotRequired[list[str]]
     user_context: str | None
     unresolved: list[str]
 
@@ -101,6 +105,8 @@ def analysis_request_to_state(
             else None
         ),
         "top_n": request.top_n,
+        "performance_measure": request.performance_measure.value,
+        "horizons": [horizon.value for horizon in request.horizons],
         "user_context": request.user_context,
         "unresolved": list(request.unresolved),
     }
@@ -128,6 +134,12 @@ def analysis_request_from_state(
             else None
         ),
         top_n=data.get("top_n"),
+        performance_measure=PerformanceMeasure(
+            data.get("performance_measure", PerformanceMeasure.TOTAL.value)
+        ),
+        horizons=tuple(
+            AnalysisHorizon(horizon) for horizon in data.get("horizons", [])
+        ),
     )
 
 

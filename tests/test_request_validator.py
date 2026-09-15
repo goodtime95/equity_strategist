@@ -3,9 +3,11 @@ from datetime import date
 import pytest
 
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.request_validation import (
@@ -357,7 +359,6 @@ def test_supported_capability_has_a_structurally_ready_request(
 @pytest.mark.parametrize(
     ("request_kwargs", "expected_issue"),
     [
-        ({"benchmark": "STOXX Europe 600"}, "benchmark analysis"),
         ({"constraints": ("EUR only",)}, "constraints"),
         ({"market_period": "1y"}, "market_period"),
     ],
@@ -472,3 +473,84 @@ def test_irrelevant_date_parameters_are_explicitly_rejected(
 
     assert result.status == RequestStatus.UNSUPPORTED
     assert any(expected_issue in issue for issue in result.issues)
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [PerformanceMeasure.TOTAL, PerformanceMeasure.ANNUALIZED],
+)
+def test_performance_horizon_request_is_ready(measure: PerformanceMeasure) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        end_date=date(2025, 1, 5),
+        performance_measure=measure,
+        horizons=(AnalysisHorizon.ONE_MONTH, AnalysisHorizon.YEAR_TO_DATE),
+    )
+
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [PerformanceMeasure.RELATIVE, PerformanceMeasure.EXCESS_RETURN],
+)
+def test_relative_measure_requires_benchmark(measure: PerformanceMeasure) -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        end_date=date(2025, 1, 5),
+        performance_measure=measure,
+        horizons=(AnalysisHorizon.ONE_YEAR,),
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+    assert "requires a benchmark" in result.issues[0]
+
+
+def test_benchmark_total_performance_is_ready() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        benchmark="S&P 500",
+    )
+
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+
+
+def test_horizon_and_explicit_start_require_clarification() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        start_date=date(2024, 1, 1),
+        end_date=date(2025, 1, 1),
+        horizons=(AnalysisHorizon.ONE_YEAR,),
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+    assert "must not include start_date" in result.issues[0]
+
+
+def test_horizon_with_non_performance_metric_requires_clarification() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE, AnalysisMetric.VOLATILITY),
+        assets=("LVMH", "Hermès"),
+        end_date=date(2025, 1, 1),
+        horizons=(AnalysisHorizon.ONE_YEAR,),
+    )
+
+    result = AnalysisRequestValidator().validate(request)
+
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+    assert any("cannot currently be combined" in issue for issue in result.issues)

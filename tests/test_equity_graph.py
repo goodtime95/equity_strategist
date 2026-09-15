@@ -10,9 +10,11 @@ from equity_strategist.domain.analysis_plan import (
     PlanStep,
 )
 from equity_strategist.domain.analysis_request import (
+    AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
+    PerformanceMeasure,
     RankingDirection,
 )
 from equity_strategist.domain.analysis_results import (
@@ -429,3 +431,36 @@ def test_graph_state_restores_request_without_ranking_controls() -> None:
 
     assert restored.ranking_direction is None
     assert restored.top_n is None
+
+
+def test_graph_state_preserves_performance_controls() -> None:
+    request = AnalysisRequest(
+        objective=AnalysisObjective.COMPARE,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=("LVMH", "Hermès"),
+        end_date=date(2025, 1, 5),
+        benchmark="S&P 500",
+        performance_measure=PerformanceMeasure.RELATIVE,
+        horizons=(AnalysisHorizon.ONE_MONTH, AnalysisHorizon.ONE_YEAR),
+    )
+
+    assert analysis_request_from_state(analysis_request_to_state(request)) == request
+
+
+def test_graph_state_restores_old_request_without_performance_controls() -> None:
+    old_state = analysis_request_to_state(
+        AnalysisRequest(
+            objective=AnalysisObjective.COMPARE,
+            metrics=(AnalysisMetric.PERFORMANCE,),
+            assets=("LVMH", "Hermès"),
+            start_date=date(2024, 1, 1),
+            end_date=date(2025, 1, 1),
+        )
+    )
+    del old_state["performance_measure"]
+    del old_state["horizons"]
+
+    restored = analysis_request_from_state(old_state)
+
+    assert restored.performance_measure == PerformanceMeasure.TOTAL
+    assert restored.horizons == ()
