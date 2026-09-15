@@ -26,8 +26,13 @@ class MarketSeriesService:
         preferred_exchange: str | None = None,
         preferred_currency: str | None = None,
         use_adjusted_close: bool = True,
+        existing_series: dict[str, MarketSeries] | None = None,
     ) -> MarketSeries:
-        """Resolve an asset and return a normalized price series."""
+        """Resolve an asset, optionally reusing same-period, same-field series.
+
+        Callers supplying existing_series must ensure its retrieval dates and
+        price convention match this request.
+        """
         if start_date > end_date:
             raise ValueError("start_date must be before or equal to end_date")
 
@@ -36,6 +41,9 @@ class MarketSeriesService:
             preferred_exchange=preferred_exchange,
             preferred_currency=preferred_currency,
         )
+
+        if existing_series is not None and asset.symbol in existing_series:
+            return existing_series[asset.symbol]
 
         return self.get_price_series_for_asset(
             asset=asset,

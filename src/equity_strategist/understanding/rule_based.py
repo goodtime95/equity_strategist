@@ -64,9 +64,44 @@ class RuleBasedUnderstanding:
             else None
         )
         horizons = self._parse_horizons(clean_question)
+        unresolved: list[str] = []
         if horizons:
             start_date = None
             end_date = reference_date
+            # This reference parser deliberately does not parse historical anchors.
+            if re.search(
+                r"\bas of\b|\bau\b|\bdepuis\b|\bsince\b|\b\d{4}\b",
+                clean_question,
+                flags=re.IGNORECASE,
+            ):
+                end_date = None
+                unresolved.append("horizon anchor requires clarification")
+            if AnalysisMetric.PRICE not in metrics:
+                target_date = None
+            # Accept only the small supported horizon-list grammar in this path.
+            horizon_clause = re.search(
+                r"\b(?:over|sur)\s+(.+?)(?=\bas of\b|$)",
+                clean_question,
+                flags=re.IGNORECASE,
+            )
+            if horizon_clause and not re.fullmatch(
+                r"(?:1m|3m|6m|1y|3y|ytd|year[- ]to[- ]date|and|et|[\s,?.])+",
+                horizon_clause[1],
+                flags=re.IGNORECASE,
+            ):
+                unresolved.append("complete horizon list requires clarification")
+            if re.search(
+                r"\b(?:\d+|one|two|three|six)\s+"
+                r"(?:years?|months?|weeks?|days?)\b",
+                clean_question,
+                flags=re.IGNORECASE,
+            ):
+                unresolved.append("unparsed horizon requires clarification")
+        compact_horizons = re.findall(r"\b\d+\s*[mywd]\b", clean_question.casefold())
+        if any(
+            token not in {"1m", "3m", "6m", "1y", "3y"} for token in compact_horizons
+        ):
+            unresolved.append("unsupported horizon requires clarification")
         benchmark = self._parse_benchmark(clean_question)
 
         return AnalysisRequest(
@@ -83,6 +118,7 @@ class RuleBasedUnderstanding:
             performance_measure=self._parse_performance_measure(clean_question),
             horizons=horizons,
             user_context=clean_question,
+            unresolved=tuple(unresolved),
         )
 
     @staticmethod

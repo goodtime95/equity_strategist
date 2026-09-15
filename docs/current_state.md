@@ -173,7 +173,7 @@ Two implementations currently exist.
 
 Provides a deterministic reference path for supported simple request shapes.
 
-It is intentionally limited and is not intended to become a general NLP engine.
+It is intentionally limited and conservative, and is not intended to become a general NLP engine. Historical horizon anchors it cannot parse and incomplete horizon lists require clarification; they must not silently become today's date or a partial analysis. `LLMUnderstanding` is the product path for broad natural-language interpretation.
 
 ### LLMUnderstanding
 
@@ -770,6 +770,13 @@ Comparisons and rankings use the latest common trading session available on or
 before each requested boundary. Requested and effective dates are both preserved.
 All compared assets and the benchmark use the same effective endpoints.
 
+### Correlation Return Intervals
+
+A known pre-existing limitation remains: correlation computes returns independently
+before aligning their observation dates. When calendars or intermediate sessions
+differ, paired returns may span different intervals. Common effective endpoints
+do not fix this limitation; return-interval/calendar redesign is outside this batch.
+
 ### Quantitative Traceability
 
 Structured price-history results now expose, where relevant:
@@ -920,11 +927,23 @@ For historical comparison or ranking:
 4. all compared assets and benchmarks use the same effective endpoints;
 5. at least two distinct common endpoints are required;
 6. series are sliced inclusively between effective endpoints;
-7. observation count may remain asset-specific because intermediate sessions may differ.
+7. observation count may remain asset-specific because intermediate sessions may differ;
+8. each start and end boundary independently admits observations from the preceding ten calendar days through the requested date, inclusively; missing eligible common sessions cause an explicit failure;
+9. fetching a longer interval for companion horizons never widens another boundary's eligibility window.
 
 For YTD, the theoretical starting boundary is January 1 and should resolve to the latest common session on or before January 1, allowing the calculation to use the previous year-end close.
 
-This is the current deterministic service behavior.
+This is the current deterministic service behavior. Deterministic responses disclose requested and effective periods when they differ, including previous-session adjustments.
+
+A resolved series may serve as both a requested asset and benchmark, with one download. Duplicate entries within the requested asset list remain invalid.
+
+### Live Product Battery
+
+`scripts/e2e_question_battery.py` contains 26 live cases. Horizon cases assert the
+requested anchor, horizons, and performance measure in requests and results. The
+historical YTD case also asserts known effective endpoints. Conservative rejection
+of mixed supported/unparsed horizons in the rule-based reference path is covered
+by deterministic regression tests.
 
 ---
 

@@ -1,6 +1,7 @@
 import json
 import traceback
 from dataclasses import dataclass
+from datetime import date
 from enum import StrEnum
 
 from openai import OpenAI
@@ -15,6 +16,7 @@ from equity_strategist.domain.analysis_request import (
     PerformanceMeasure,
     RankingDirection,
 )
+from equity_strategist.domain.analysis_results import PerformanceAnalysisResult
 from equity_strategist.domain.request_validation import RequestStatus
 from equity_strategist.interpretation.evidence import serialize_execution_evidence
 from equity_strategist.strategists.graph import EquityStrategistGraph
@@ -43,6 +45,8 @@ class ExpectedBehavior:
     issue_contains: tuple[str, ...] = ()
     performance_measure: PerformanceMeasure = PerformanceMeasure.TOTAL
     horizons: tuple[AnalysisHorizon, ...] = ()
+    end_date: date | None = None
+    effective_periods: tuple[tuple[AnalysisHorizon, date, date], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,13 +290,18 @@ CASES = (
     E2ECase(
         name="ytd_performance",
         question=(
-            "Compare Schneider Electric and Safran by YTD performance as of 2025-12-31."
+            "Compare Schneider Electric and Safran by YTD performance "
+            "as of December 31, 2024."
         ),
         expected=ExpectedBehavior(
             objective=AnalysisObjective.COMPARE,
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Schneider Electric", "Safran"),
             status=RequestStatus.READY,
+            end_date=date(2024, 12, 31),
+            effective_periods=(
+                (AnalysisHorizon.YEAR_TO_DATE, date(2023, 12, 29), date(2024, 12, 31)),
+            ),
             horizons=(AnalysisHorizon.YEAR_TO_DATE,),
             capabilities=(Capability.COMPARE_PERFORMANCE,),
         ),
@@ -308,6 +317,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Schneider Electric", "Safran"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             horizons=(
                 AnalysisHorizon.ONE_MONTH,
                 AnalysisHorizon.THREE_MONTHS,
@@ -329,6 +339,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Siemens", "SAP"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             performance_measure=PerformanceMeasure.ANNUALIZED,
             horizons=(AnalysisHorizon.THREE_YEARS,),
             capabilities=(Capability.COMPARE_PERFORMANCE,),
@@ -345,6 +356,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("LVMH", "SAP", "Siemens"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             ranking_direction=RankingDirection.HIGHEST,
             top_n=2,
             horizons=(AnalysisHorizon.SIX_MONTHS,),
@@ -362,6 +374,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("LVMH", "SAP", "Siemens"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             ranking_direction=RankingDirection.LOWEST,
             top_n=2,
             horizons=(AnalysisHorizon.ONE_YEAR,),
@@ -379,6 +392,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Schneider Electric", "Safran"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             benchmark="S&P 500",
             performance_measure=PerformanceMeasure.RELATIVE,
             horizons=(AnalysisHorizon.ONE_YEAR,),
@@ -396,6 +410,7 @@ CASES = (
             metrics=(AnalysisMetric.PERFORMANCE,),
             assets=("Schneider Electric", "Safran"),
             status=RequestStatus.READY,
+            end_date=date(2025, 12, 31),
             benchmark="S&P 500",
             performance_measure=PerformanceMeasure.EXCESS_RETURN,
             horizons=(AnalysisHorizon.ONE_YEAR,),
@@ -667,6 +682,14 @@ def _check_state(
             )
         )
 
+    if expected.end_date is not None and request.end_date != expected.end_date:
+        failures.append(
+            Failure(
+                PipelineLayer.UNDERSTANDING,
+                f"unexpected anchor/end_date: {request.end_date!r}",
+            )
+        )
+
     validation = state.get("validation")
     if validation is None:
         failures.append(Failure(PipelineLayer.VALIDATION, "no validation returned"))
@@ -734,6 +757,52 @@ def _check_state(
             Failure(PipelineLayer.EXECUTION, "ready request has no execution result")
         )
     else:
+        if expected.horizons:
+            performance_results = [
+                step.result
+                for step in execution.step_results
+                if isinstance(step.result, PerformanceAnalysisResult)
+            ]
+            if not performance_results:
+                failures.append(
+                    Failure(
+                        PipelineLayer.EXECUTION, "missing horizon performance result"
+                    )
+                )
+            for result in performance_results:
+                if result.measure != expected.performance_measure:
+                    failures.append(
+                        Failure(
+                            PipelineLayer.EXECUTION,
+                            "unexpected result performance measure",
+                        )
+                    )
+                if (
+                    tuple(period.horizon for period in result.periods)
+                    != expected.horizons
+                ):
+                    failures.append(
+                        Failure(PipelineLayer.EXECUTION, "unexpected result horizons")
+                    )
+                for period in result.periods:
+                    if period.requested_end_date != expected.end_date:
+                        failures.append(
+                            Failure(
+                                PipelineLayer.EXECUTION,
+                                "unexpected result anchor/end_date",
+                            )
+                        )
+                    for horizon, start, end in expected.effective_periods:
+                        if period.horizon == horizon and (
+                            period.effective_start_date,
+                            period.effective_end_date,
+                        ) != (start, end):
+                            failures.append(
+                                Failure(
+                                    PipelineLayer.EXECUTION,
+                                    f"unexpected effective dates for {horizon.value}",
+                                )
+                            )
         evidence = serialize_execution_evidence(execution)
         evidence_steps = evidence.get("steps")
         if not isinstance(evidence_steps, list) or not evidence_steps:

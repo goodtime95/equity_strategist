@@ -150,6 +150,10 @@ Transforms natural-language questions into typed `AnalysisRequest` objects.
 
 Understanding extracts intent. It does not calculate financial results.
 
+`RuleBasedUnderstanding` is a limited deterministic reference implementation, not a broad natural-language parser. When it cannot faithfully represent the full request, it must fail conservatively through explicit unresolved semantics or clarification rather than guess, substitute dates, or partially interpret the request.
+
+`LLMUnderstanding` is the product path for broad natural-language interpretation.
+
 ### `strategists/`
 
 Handle:
@@ -344,6 +348,8 @@ The alignment policy must be:
 * represented in structured results.
 
 When several metrics in one execution require compatible historical data, prefer reusing a coherent execution-level dataset rather than independently fetching the same history for every metric.
+
+Data-download breadth must not alter financial boundary eligibility. Each requested boundary must obey its explicit eligibility policy independently of other requested periods. Optimization of data reuse must never change calculation semantics.
 
 Runtime market datasets must not be persisted into LangGraph state.
 

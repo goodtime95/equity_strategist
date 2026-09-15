@@ -1,3 +1,5 @@
+from datetime import date
+
 from equity_strategist.domain.analysis_execution import (
     AnalysisExecutionResult,
 )
@@ -57,12 +59,13 @@ class DeterministicInterpretation:
     def _interpret_volatility(
         result: VolatilityComparisonResult,
     ) -> str:
-        lines = [
-            (
-                "Historical volatility comparison "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
+        period_label = _format_period(
+            result.start_date,
+            result.end_date,
+            result.effective_start_date,
+            result.effective_end_date,
+        )
+        lines = [f"Historical volatility comparison {period_label}:"]
 
         for rank, item in enumerate(result.items, start=1):
             name = item.name or item.symbol
@@ -99,9 +102,13 @@ class DeterministicInterpretation:
             label = (
                 period.horizon.value.upper() if period.horizon else "Explicit period"
             )
-            lines.append(
-                f"{label}: {period.effective_start_date} to {period.effective_end_date}"
+            period_label = _format_period(
+                period.requested_start_date,
+                period.requested_end_date,
+                period.effective_start_date,
+                period.effective_end_date,
             )
+            lines.append(f"{label}: {period_label}")
             if period.benchmark is not None:
                 benchmark_name = period.benchmark.name or period.benchmark.symbol
                 lines.append(
@@ -119,12 +126,13 @@ class DeterministicInterpretation:
     def _interpret_correlation(
         result: CorrelationAnalysisResult,
     ) -> str:
-        lines = [
-            (
-                "Historical correlation analysis "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
+        period_label = _format_period(
+            result.start_date,
+            result.end_date,
+            result.effective_start_date,
+            result.effective_end_date,
+        )
+        lines = [f"Historical correlation analysis {period_label}:"]
 
         for item in result.items:
             first_name = item.first_name or item.first_symbol
@@ -142,12 +150,13 @@ class DeterministicInterpretation:
     def _interpret_drawdown(
         result: DrawdownComparisonResult,
     ) -> str:
-        lines = [
-            (
-                "Maximum drawdown comparison "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
+        period_label = _format_period(
+            result.start_date,
+            result.end_date,
+            result.effective_start_date,
+            result.effective_end_date,
+        )
+        lines = [f"Maximum drawdown comparison {period_label}:"]
 
         for rank, item in enumerate(result.items, start=1):
             name = item.name or item.symbol
@@ -172,12 +181,13 @@ class DeterministicInterpretation:
     def _interpret_ranking(
         result: RankingResult,
     ) -> str:
-        lines = [
-            (
-                f"Ranking by {result.metric} "
-                f"from {result.start_date} to {result.end_date}:"
-            )
-        ]
+        period_label = _format_period(
+            result.start_date,
+            result.end_date,
+            result.effective_start_date,
+            result.effective_end_date,
+        )
+        lines = [f"Ranking by {result.metric} {period_label}:"]
 
         for item in result.items:
             name = item.name or item.symbol
@@ -205,3 +215,20 @@ class DeterministicInterpretation:
         ]
 
         return "\n".join(lines)
+
+
+def _format_period(
+    requested_start: date,
+    requested_end: date,
+    effective_start: date | None,
+    effective_end: date | None,
+) -> str:
+    requested = f"from {requested_start} to {requested_end}"
+    if effective_start is None or effective_end is None:
+        return f"requested {requested} (effective dates unavailable)"
+    if (requested_start, requested_end) == (effective_start, effective_end):
+        return requested
+    return (
+        f"requested {requested}; calculated from {effective_start} to {effective_end} "
+        "(previous-session adjustment)"
+    )

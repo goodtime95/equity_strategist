@@ -119,8 +119,9 @@ class MarketDatasetService:
                 asset_query=benchmark_query,
                 start_date=start_date,
                 end_date=end_date,
+                existing_series=series_by_symbol,
             )
-            self._add_unique_series(series_by_symbol, benchmark_series)
+            series_by_symbol.setdefault(benchmark_series.identifier, benchmark_series)
             benchmark_symbol = benchmark_series.identifier
 
         return MarketDatasetBundle(
@@ -163,8 +164,9 @@ class MarketDatasetService:
                 asset_query=benchmark_query,
                 start_date=start_date,
                 end_date=end_date,
+                existing_series=series_by_symbol,
             )
-            self._add_unique_series(series_by_symbol, benchmark_series)
+            series_by_symbol.setdefault(benchmark_series.identifier, benchmark_series)
             benchmark_symbol = benchmark_series.identifier
 
         return MarketDatasetBundle(
@@ -217,13 +219,29 @@ class MarketDatasetService:
             )
 
         assert common_index is not None
-        start_candidates = common_index[common_index.date <= requested_start_date]
-        end_candidates = common_index[common_index.date <= requested_end_date]
+        start_candidates = common_index[
+            (
+                common_index.date
+                >= MarketDatasetService.history_fetch_start(requested_start_date)
+            )
+            & (common_index.date <= requested_start_date)
+        ]
+        end_candidates = common_index[
+            (
+                common_index.date
+                >= MarketDatasetService.history_fetch_start(requested_end_date)
+            )
+            & (common_index.date <= requested_end_date)
+        ]
 
         if start_candidates.empty:
-            raise ValueError("no common trading session available on or before start")
+            raise ValueError(
+                "no common trading session available within start boundary lookback"
+            )
         if end_candidates.empty:
-            raise ValueError("no common trading session available on or before end")
+            raise ValueError(
+                "no common trading session available within end boundary lookback"
+            )
 
         effective_start = start_candidates[-1]
         effective_end = end_candidates[-1]

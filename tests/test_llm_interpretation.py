@@ -502,3 +502,43 @@ def test_correlation_evidence_preserves_endpoint_and_asset_metadata() -> None:
     assert item["observation_count"] == 250
     assert item["first_currency"] == "EUR"
     assert item["second_currency"] == "EUR"
+
+
+@pytest.mark.parametrize(
+    "kind", ["performance", "volatility", "correlation", "drawdown", "ranking"]
+)
+@pytest.mark.parametrize("adjusted", [False, True])
+def test_deterministic_fallback_exposes_calculation_period(
+    kind: str, adjusted: bool
+) -> None:
+    start, end = date(2024, 1, 1), date(2024, 1, 6)
+    effective_start = date(2023, 12, 29) if adjusted else start
+    effective_end = date(2024, 1, 5) if adjusted else end
+    common = dict(
+        start_date=start,
+        end_date=end,
+        items=(),
+        effective_start_date=effective_start,
+        effective_end_date=effective_end,
+    )
+    results = {
+        "performance": PerformanceAnalysisResult(
+            measure=PerformanceMeasure.TOTAL,
+            periods=(
+                PerformancePeriodResult(
+                    None, start, end, effective_start, effective_end, ()
+                ),
+            ),
+        ),
+        "volatility": VolatilityComparisonResult(annualization_factor=252, **common),
+        "correlation": CorrelationAnalysisResult(**common),
+        "drawdown": DrawdownComparisonResult(**common),
+        "ranking": RankingResult(metric="volatility", **common),
+    }
+    answer = DeterministicInterpretation()._interpret_step(results[kind])
+    assert "2024-01-01" in answer and "2024-01-06" in answer
+    if adjusted:
+        assert "calculated from 2023-12-29 to 2024-01-05" in answer
+        assert "previous-session adjustment" in answer
+    else:
+        assert "adjustment" not in answer

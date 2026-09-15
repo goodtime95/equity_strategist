@@ -244,3 +244,46 @@ def test_understand_minimal_relative_benchmark() -> None:
 
     assert request.performance_measure == PerformanceMeasure.RELATIVE
     assert request.benchmark == "S&P 500"
+
+
+@pytest.mark.parametrize("anchor", ["December 31, 2024", "2024-12-31"])
+def test_historical_horizon_anchor_requires_clarification(anchor: str) -> None:
+    request = build_understanding().understand(
+        f"Compare LVMH and Hermes YTD performance as of {anchor}",
+        today=date(2026, 9, 15),
+    )
+    assert request.end_date is None
+    assert request.unresolved
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )
+
+
+@pytest.mark.parametrize(
+    "horizons",
+    ["1m and 2y", "1m and two years", "1m and 12m", "1m and 2 weeks", "1m and 1 y"],
+)
+def test_incomplete_horizon_list_requires_clarification(horizons: str) -> None:
+    request = build_understanding().understand(
+        f"Compare LVMH and Hermes performance over {horizons}",
+        today=date(2026, 9, 15),
+    )
+    assert request.unresolved
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )
+
+
+@pytest.mark.parametrize("period", ["1m and two years", "2y depuis 2022"])
+def test_unparsed_horizons_without_over_are_not_executed(period: str) -> None:
+    request = build_understanding().understand(
+        f"Compare LVMH and Hermes performance {period}",
+        today=date(2026, 9, 15),
+    )
+    assert request.unresolved
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )

@@ -33,7 +33,11 @@ class FakeMarketSeriesService:
         preferred_exchange: str | None = None,
         preferred_currency: str | None = None,
         use_adjusted_close: bool = True,
+        existing_series: dict[str, MarketSeries] | None = None,
     ) -> MarketSeries:
+        symbol = f"{asset_query}.TEST"
+        if existing_series is not None and symbol in existing_series:
+            return existing_series[symbol]
         self.calls.append((asset_query, start_date, end_date))
         asset = Asset(
             symbol=f"{asset_query}.TEST",
@@ -47,7 +51,7 @@ class FakeMarketSeriesService:
             values=pd.Series(
                 list(values.values()),
                 index=pd.to_datetime(list(values)),
-            ),
+            ).loc[str(start_date) : str(end_date)],
             unit="EUR",
             metadata={"asset": asset, "field": "adjusted_close"},
         )
@@ -315,3 +319,180 @@ def test_executor_reuses_one_dataset_for_compatible_metrics() -> None:
 
     assert len(execution.step_results) == 2
     assert [call[0] for call in series_service.calls] == ["Asset A", "Asset B"]
+
+
+@pytest.mark.parametrize(
+    "companion", [None, AnalysisHorizon.ONE_YEAR, AnalysisHorizon.THREE_YEARS]
+)
+@pytest.mark.parametrize("start_session", ["2024-12-20", "2024-12-21", "2024-12-31"])
+def test_horizon_boundary_eligibility_is_independent_of_download_breadth(
+    companion: AnalysisHorizon | None,
+    start_session: str,
+) -> None:
+    service, provider = build_service(
+        {
+            "Asset A": {
+                "2022-01-31": 50.0,
+                "2024-01-31": 80.0,
+                start_session: 100.0,
+                "2025-01-15": 110.0,
+                "2025-01-31": 120.0,
+            }
+        }
+    )
+    horizons = (AnalysisHorizon.ONE_MONTH,) + ((companion,) if companion else ())
+    if start_session == "2024-12-20":
+        with pytest.raises(ValueError, match="start boundary lookback"):
+            service.compare(["Asset A"], None, date(2025, 1, 31), horizons=horizons)
+    else:
+        result = service.compare(
+            ["Asset A"], None, date(2025, 1, 31), horizons=horizons
+        )
+        period = result.periods[0]
+        assert period.requested_start_date == date(2024, 12, 31)
+        assert period.effective_start_date == date.fromisoformat(start_session)
+        assert period.effective_end_date == date(2025, 1, 31)
+        assert period.items[0].value == pytest.approx(0.2)
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.parametrize("last_session", ["2025-01-20", "2025-01-21"])
+def test_end_boundary_has_its_own_inclusive_lookback(last_session: str) -> None:
+    service, _ = build_service(
+        {
+            "Asset A": {
+                "2024-12-31": 100.0,
+                last_session: 120.0,
+            }
+        }
+    )
+    if last_session == "2025-01-20":
+        with pytest.raises(ValueError, match="end boundary lookback"):
+            service.compare(
+                ["Asset A"],
+                None,
+                date(2025, 1, 31),
+                horizons=(AnalysisHorizon.ONE_MONTH,),
+            )
+    else:
+        result = service.compare(
+            ["Asset A"], None, date(2025, 1, 31), horizons=(AnalysisHorizon.ONE_MONTH,)
+        )
+        assert result.periods[0].effective_end_date == date(2025, 1, 21)
+
+
+def test_ytd_uses_previous_year_close() -> None:
+    service, _ = build_service(explicit_values())
+    result = service.compare(
+        ["Asset A", "Asset B"],
+        None,
+        date(2024, 1, 6),
+        horizons=(AnalysisHorizon.YEAR_TO_DATE,),
+    )
+    assert result.periods[0].requested_start_date == date(2024, 1, 1)
+    assert result.periods[0].effective_start_date == date(2023, 12, 29)
+    assert result.items[0].value == pytest.approx(0.2)
+
+
+@pytest.mark.parametrize("universe", [False, True])
+@pytest.mark.parametrize(
+    "measure",
+    [
+        PerformanceMeasure.TOTAL,
+        PerformanceMeasure.RELATIVE,
+        PerformanceMeasure.EXCESS_RETURN,
+    ],
+)
+def test_executor_reuses_asset_as_benchmark(
+    universe: bool, measure: PerformanceMeasure
+) -> None:
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from equity_strategist.domain.observations import DailyPriceObservation
+    from equity_strategist.domain.request_validation import RequestStatus
+    from equity_strategist.services.market_series import MarketSeriesService
+    from equity_strategist.services.ranking_analysis import RankingAnalysisService
+    from equity_strategist.strategists.planner import EquityPlanner
+    from equity_strategist.strategists.validator import AnalysisRequestValidator
+
+    assets = (
+        Asset("A", name="Asset A", currency="EUR"),
+        Asset("B", name="Asset B", currency="EUR"),
+    )
+    downloads: list[str] = []
+
+    def resolve(query: str, **kwargs: object) -> Asset:
+        return assets[0] if query in {"Asset A", "A", "benchmark alias"} else assets[1]
+
+    def get_daily_prices(
+        asset: Asset, start_date: date, end_date: date
+    ) -> list[DailyPriceObservation]:
+        downloads.append(asset.symbol)
+        return [
+            DailyPriceObservation(
+                asset, day, value, value, value, value, adjusted_close=value
+            )
+            for day, value in [
+                (date(2023, 12, 29), Decimal("100")),
+                (
+                    date(2024, 1, 5),
+                    Decimal("120") if asset.symbol == "A" else Decimal("110"),
+                ),
+            ]
+        ]
+
+    dataset = MarketDatasetService(
+        MarketSeriesService(
+            SimpleNamespace(get_daily_prices=get_daily_prices),
+            SimpleNamespace(resolve=resolve),
+        )
+    )
+    performance = PerformanceAnalysisService(dataset)
+    executor = EquityExecutor(
+        volatility_analysis_service=object(),
+        performance_analysis_service=performance,
+        correlation_analysis_service=object(),
+        drawdown_analysis_service=object(),
+        ranking_analysis_service=RankingAnalysisService(dataset, performance),
+        market_query_service=object(),
+        universe_constituent_service=SimpleNamespace(
+            get_constituents=lambda name: ("Asset A", "Asset B")
+        ),
+        universe_asset_resolver=SimpleNamespace(resolve_many=lambda queries: assets),
+        market_dataset_service=dataset,
+    )
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        assets=() if universe else ("Asset A", "Asset B"),
+        universe="Test universe" if universe else None,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 1, 6),
+        benchmark="benchmark alias",
+        performance_measure=measure,
+    )
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+    result = executor.execute(EquityPlanner().plan(request)).step_results[0].result
+    assert downloads == ["A", "B"]
+    assert result.periods[0].benchmark.symbol == "A"
+    item = next(item for item in result.items if item.symbol == "A")
+    assert item.value == pytest.approx(
+        0.2 if measure == PerformanceMeasure.TOTAL else 0.0
+    )
+
+    with pytest.raises(ValueError, match="duplicate asset"):
+        if universe:
+            dataset.build_price_dataset_bundle_for_assets(
+                (assets[0], assets[0]),
+                date(2023, 12, 29),
+                date(2024, 1, 5),
+                benchmark_query="benchmark alias",
+            )
+        else:
+            dataset.build_price_dataset_bundle(
+                ["Asset A", "A"],
+                date(2023, 12, 29),
+                date(2024, 1, 5),
+                benchmark_query="benchmark alias",
+            )
