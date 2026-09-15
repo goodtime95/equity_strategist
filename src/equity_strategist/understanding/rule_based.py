@@ -70,7 +70,7 @@ class RuleBasedUnderstanding:
             end_date = reference_date
             # This reference parser deliberately does not parse historical anchors.
             if re.search(
-                r"\bas of\b|\bau\b|\bdepuis\b|\bsince\b|\b\d{4}\b",
+                r"\bas of\b|\bending\b|\bau\b|\bdepuis\b|\bsince\b|\b\d{4}\b",
                 clean_question,
                 flags=re.IGNORECASE,
             ):
@@ -80,7 +80,7 @@ class RuleBasedUnderstanding:
                 target_date = None
             # Accept only the small supported horizon-list grammar in this path.
             horizon_clause = re.search(
-                r"\b(?:over|sur)\s+(.+?)(?=\bas of\b|$)",
+                r"\b(?:over|sur|for)\s+(.+?)(?=\bas of\b|$)",
                 clean_question,
                 flags=re.IGNORECASE,
             )
@@ -92,7 +92,7 @@ class RuleBasedUnderstanding:
                 unresolved.append("complete horizon list requires clarification")
             if re.search(
                 r"\b(?:\d+|one|two|three|six)\s+"
-                r"(?:years?|months?|weeks?|days?)\b",
+                r"(?:years?|quarters?|months?|weeks?|days?)\b",
                 clean_question,
                 flags=re.IGNORECASE,
             ):

@@ -234,6 +234,8 @@ def test_understand_minimal_performance_horizon_and_measure() -> None:
     )
     assert request.start_date is None
     assert request.end_date == date(2026, 9, 13)
+    assert not request.unresolved
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
 
 
 def test_understand_minimal_relative_benchmark() -> None:
@@ -283,6 +285,35 @@ def test_unparsed_horizons_without_over_are_not_executed(period: str) -> None:
         today=date(2026, 9, 15),
     )
     assert request.unresolved
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )
+
+
+def test_unparsed_ending_anchor_does_not_default_to_today() -> None:
+    request = build_understanding().understand(
+        "Compare LVMH and Hermes YTD performance ending last year",
+        today=date(2026, 9, 15),
+    )
+
+    assert request.horizons == (AnalysisHorizon.YEAR_TO_DATE,)
+    assert request.end_date is None
+    assert "horizon anchor requires clarification" in request.unresolved
+    assert (
+        AnalysisRequestValidator().validate(request).status
+        == RequestStatus.NEEDS_CLARIFICATION
+    )
+
+
+def test_unparsed_quarters_prevent_partial_horizon_execution() -> None:
+    request = build_understanding().understand(
+        "Compare LVMH and Hermes performance for 1m and 2 quarters",
+        today=date(2026, 9, 15),
+    )
+
+    assert request.horizons == (AnalysisHorizon.ONE_MONTH,)
+    assert "unparsed horizon requires clarification" in request.unresolved
     assert (
         AnalysisRequestValidator().validate(request).status
         == RequestStatus.NEEDS_CLARIFICATION
