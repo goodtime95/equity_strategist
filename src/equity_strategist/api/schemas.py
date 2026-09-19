@@ -1,9 +1,11 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     question: str = Field(min_length=1, max_length=4000)
     thread_id: str | None = Field(default=None, min_length=1, max_length=128)
     include_evidence: bool = True

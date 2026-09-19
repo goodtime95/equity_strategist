@@ -1,6 +1,6 @@
 # Current State
 
-Last update: 2026-09-15
+Last update: 2026-09-19
 
 ---
 
@@ -9,13 +9,22 @@ Last update: 2026-09-15
 The current milestone exposes the established analytical pipeline through an
 authenticated FastAPI service for remote clients. `/health` is a public liveness
 check; `/v1/chat` maps graph outcomes and deterministic evidence into stable v1
-JSON. Railway deployment is prepared, with remote acceptance testing pending a
-deployed URL and environment credentials. The API adds no financial capabilities
-or quantitative methodology changes.
+JSON. The branch has been deployed on Railway and passed all six remote acceptance
+checks: health, authentication rejection, one-turn analysis, clarification,
+same-thread refinement, and horizon plus benchmark evidence. Subsequent API
+changes must be redeployed and the remote battery rerun. The API adds no financial
+capabilities or quantitative methodology changes.
+
+The API hardening pass adds encoding-safe Bearer verification, a 64 KiB total
+chat-body limit enforced before JSON parsing (including streamed bodies), rejection
+of unexpected request fields, and allowlisted failure metadata instead of exception
+payloads or tracebacks. Production startup validates required API/OpenAI
+configuration locally without provider calls. Blank model settings use the default.
 
 Conversation checkpoints use `InMemorySaver`. Thread continuity survives only
 while the single server process remains alive; restart or redeployment loses it.
-The service must run with one process and one worker. Durable or distributed
+The service must run with one Uvicorn worker AND one Railway replica. The worker
+flag does not configure the Railway replica count. Durable or distributed
 checkpointing is a later milestone.
 
 Equity Strategist now supports a complete conversational quantitative workflow:
@@ -1049,7 +1058,7 @@ Structured quantitative evidence
 LLM synthesis
 ```
 
-The immediate priority is to deploy and remotely test the HTTP transport while
+The immediate priority is to finalize the API hardening pass before merge while
 preserving:
 
 * request fidelity;
