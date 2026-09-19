@@ -36,11 +36,38 @@ def main() -> None:
         assert one_turn["status"] == "success" and one_turn["evidence"]["steps"]
         print("PASS one-turn analysis")
 
+        feedback_payload = {"request_id": one_turn["request_id"], "useful": True}
+        denied_feedback = client.post("/v1/feedback", json=feedback_payload)
+        assert denied_feedback.status_code == 401
+        feedback = client.post("/v1/feedback", headers=headers, json=feedback_payload)
+        persistence_expected = (
+            os.getenv("EQUITY_STRATEGIST_SMOKE_EXPECT_PERSISTENCE", "false").lower()
+            == "true"
+        )
+        if persistence_expected:
+            assert feedback.status_code == 201
+            assert feedback.json()["request_id"] == one_turn["request_id"]
+            from uuid import uuid4
+
+            missing = client.post(
+                "/v1/feedback",
+                headers=headers,
+                json={
+                    "request_id": str(uuid4()),
+                    "useful": False,
+                },
+            )
+            assert missing.status_code == 404
+        else:
+            assert feedback.status_code == 503
+        print("PASS authenticated feedback and configured persistence behavior")
+
         first = chat(
             "Compare Schneider Electric and Safran by performance and risk "
             "from 2024-01-01 to 2025-12-31."
         )
         assert first["status"] == "needs_clarification"
+        assert first["validation"]["issue_codes"]
         print("PASS clarification required")
 
         second = chat("Use historical volatility for risk.", first["thread_id"])
@@ -60,7 +87,7 @@ def main() -> None:
         assert horizon["evidence"]["steps"]
         print("PASS horizon and benchmark evidence")
 
-    print("Remote API smoke battery passed (6 checks).")
+    print("Remote API smoke battery passed (including feedback and validation codes).")
 
 
 if __name__ == "__main__":

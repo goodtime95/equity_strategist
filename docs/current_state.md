@@ -6,20 +6,69 @@ Last update: 2026-09-19
 
 ## Current Milestone
 
-The current milestone exposes the established analytical pipeline through an
-authenticated FastAPI service for remote clients. `/health` is a public liveness
-check; `/v1/chat` maps graph outcomes and deterministic evidence into stable v1
-JSON. The branch has been deployed on Railway and passed all six remote acceptance
-checks: health, authentication rejection, one-turn analysis, clarification,
-same-thread refinement, and horizon plus benchmark evidence. Subsequent API
-changes must be redeployed and the remote battery rerun. The API adds no financial
-capabilities or quantitative methodology changes.
+The current milestone implements **Persistence & Product Telemetry V1** around the
+existing authenticated FastAPI service. The analytical engine remains independently
+usable without PostgreSQL; database or snapshot failures never suppress a successful
+analysis. This revision has not been deployed or verified against a real database.
+The earlier API deployment passed the six original remote acceptance checks; rerun
+the extended battery after deployment rather than treating that result as V1 proof.
 
-The API hardening pass adds encoding-safe Bearer verification, a 64 KiB total
-chat-body limit enforced before JSON parsing (including streamed bodies), rejection
-of unexpected request fields, and allowlisted failure metadata instead of exception
-payloads or tracebacks. Production startup validates required API/OpenAI
-configuration locally without provider calls. Blank model settings use the default.
+`FastAPI -> AnalysisRunCoordinator -> EquityStrategistGraph` adds run identity,
+UTC timestamps, monotonic duration and optional stage observations. After execution
+and response mapping, the coordinator builds an explicit version-1 snapshot and
+best-effort writes it through `RunRepository`. No connection is held during graph,
+OpenAI or Yahoo execution. A no-op adapter is the default; the PostgreSQL adapter
+uses SQLAlchemy 2 Core and Psycopg 3. An application-level run-write budget
+(`EQUITY_STRATEGIST_PERSISTENCE_TIMEOUT_SECONDS`, default 2 seconds) bounds waiting
+independently of database/socket behavior. One admitted daemon write operation is
+allowed; later snapshots are skipped while it is busy, without queues or replacement
+workers. Shutdown is bounded and defers repository disposal until the active write
+returns. A permanently stalled daemon/connection is released at process exit.
+Timed-out writes may commit later; they are never retried. Responses can succeed
+without durable rows. Feedback remains an acknowledged repository operation.
+
+Alembic migration `0001_product_telemetry` creates only two product tables:
+`analysis_run` (identity, timestamps, statuses, issue codes, capabilities, optional
+content/evidence, safe errors, observations, model/app/git metadata and content/
+snapshot versions; persisted thread IDs must match a versioned digest format) and `feedback` (UUID, cascading run FK, usefulness, bounded
+optional comment and timestamp). Alembic's revision table is migration machinery.
+Application startup and requests never create tables or run migrations.
+
+Persistence is enabled explicitly with `EQUITY_STRATEGIST_PERSISTENCE_ENABLED=true`
+and `DATABASE_URL`. The default content policy is metadata-only; full pilot content
+requires `EQUITY_STRATEGIST_PERSIST_CONTENT=true`. The existing deterministic evidence
+serializer is the quantitative storage contract. Prompts, raw provider data,
+price histories, request envelopes, exception messages and tracebacks are excluded.
+Known configured secrets and recognizable credential strings are redacted from
+content. Cleanup defaults to 30 days (`EQUITY_STRATEGIST_RETENTION_DAYS`) and must be
+scheduled by an operator; request/thread deletion cascades to feedback.
+
+A single `persistent_thread_id()` helper produces a versioned SHA-256 digest of
+the exact external ID in both content modes. This prevents raw caller-controlled
+thread content from entering storage and avoids redaction collisions. Deletion
+accepts the external ID and uses the same transformation. The API and LangGraph
+retain original IDs; only persistence uses the digest. The initial undeployed
+migration includes the digest format constraint; no compatibility migration is
+needed.
+
+`POST /v1/feedback` uses the existing Bearer authentication: 201 stored, 404 unknown
+run, 503 storage unavailable, 422 invalid body. Its comment limit is 2,000 characters;
+metadata-only mode discards comments. The 64 KiB body limit covers chat and feedback.
+There are no history browsing endpoints. Validation responses add stable
+`issue_codes`, assigned directly at validator branches, with defaults for older
+checkpoints. Known provider, data-availability and asset-resolution failures have
+typed categories; unknown failures remain `internal_error` with stage-only metadata.
+Yahoo's typed missing-price error now maps to `insufficient_data`; network and
+rate-limit failures remain `provider_failure`.
+
+Understanding/refinement, validation, planning, execution, interpretation,
+interpretation fallback and serialization emit optional isolated timing observations.
+Completed intent and plan metadata remain observable if a later stage fails.
+Runtime observations and datasets never enter checkpoint state. Deterministic tests
+cover policy, privacy, failure isolation, feedback and offline migrations. Real
+PostgreSQL tests require an explicit test URL and `-m postgres`; remote acceptance
+extends `scripts/remote_api_smoke.py`. See README for the exact Railway deployment,
+migration, cleanup and rollback sequence.
 
 Conversation checkpoints use `InMemorySaver`. Thread continuity survives only
 while the single server process remains alive; restart or redeployment loses it.
@@ -1058,7 +1107,8 @@ Structured quantitative evidence
 LLM synthesis
 ```
 
-The immediate priority is to finalize the API hardening pass before merge while
+The immediate priority is to validate V1 against PostgreSQL and redeploy the
+extended remote acceptance battery while
 preserving:
 
 * request fidelity;

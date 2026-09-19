@@ -2,6 +2,7 @@ import json
 
 from openai import OpenAI
 
+from equity_strategist.application.telemetry import stage_timing
 from equity_strategist.domain.analysis_execution import (
     AnalysisExecutionResult,
 )
@@ -43,10 +44,12 @@ class LLMInterpretation:
             )
             answer = response.output_text.strip()
         except Exception:
-            return self.fallback.interpret(execution)
+            with stage_timing("interpretation_fallback"):
+                return self.fallback.interpret(execution)
 
         if not answer:
-            return self.fallback.interpret(execution)
+            with stage_timing("interpretation_fallback"):
+                return self.fallback.interpret(execution)
 
         return answer
 

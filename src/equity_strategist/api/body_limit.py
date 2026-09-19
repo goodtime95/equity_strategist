@@ -11,7 +11,10 @@ class ChatBodyLimitMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["path"].rstrip("/") != "/v1/chat":
+        if scope["type"] != "http" or scope["path"].rstrip("/") not in {
+            "/v1/chat",
+            "/v1/feedback",
+        }:
             await self.app(scope, receive, send)
             return
 

@@ -779,3 +779,46 @@ Configuration that materially affects:
 * public application behavior
 
 should be explicit and injectable where practical.
+
+---
+
+## Persistence and Product Telemetry V1
+
+`application/run_coordinator.py` (`AnalysisRunCoordinator`) owns request IDs, timestamps, duration,
+optional pipeline observations, explicit safe snapshots and best-effort storage.
+It sits between HTTP transport and the graph and must not own financial logic.
+The engine and graph must remain usable with no PostgreSQL configuration.
+Neither telemetry, snapshot construction nor storage failures may suppress or
+invalidate a successful financial analysis.
+
+`persistence/` provides a `RunRepository` protocol, no-op adapter and PostgreSQL
+adapter using SQLAlchemy 2 Core and Psycopg 3. Acquire connections/transactions only
+for repository operations, never across graph/OpenAI/Yahoo execution. Use Alembic
+for schema changes; never create tables or migrate during startup or requests.
+V1 has only `analysis_run` and `feedback` product tables. Keep `InMemorySaver` and
+never reconstruct conversations from telemetry history.
+
+Default storage is metadata-only; full question/request/evidence/answer/comment
+storage requires explicit `EQUITY_STRATEGIST_PERSIST_CONTENT=true`. Construct
+snapshots from explicit fields and deterministic evidence, never generic graph or
+provider-object serialization. Do not store secrets, request headers, cookies,
+IP addresses, LLM prompts, environment dumps, raw provider payloads, tracebacks or
+price histories. Error metadata is an allowlist (currently stage only), never
+`str(exception)`. Codes originate where validation issues are created; unknown
+exceptions remain `internal_error`. Preserve older checkpoints without issue codes.
+
+Default retention is 30 days, enforced by the operator cleanup CLI scheduled
+outside the API. Request/thread deletion cascades to feedback; it does not alter
+conversation checkpoints. Feedback writes must explicitly report unavailable
+storage rather than falsely acknowledge success. Keep database tests behind the
+`postgres` marker and explicit test URL, outside the default deterministic suite.
+Extend `scripts/remote_api_smoke.py` for API acceptance; do not create another
+remote test framework.
+
+Persist thread identity only through `application/thread_identity.py`; use the
+same helper for storage and deletion by an external ID. Never redact identifiers
+into shared placeholder values. API and LangGraph thread IDs remain unchanged.
+Run writes must use the coordinator's bounded writer. Admit at most one operation,
+drop subsequent snapshots while busy, and never spawn replacement workers for a
+stalled operation. Timeouts leave commit status uncertain and must not trigger a
+retry. Shutdown must remain bounded and defer disposal until an active write exits.

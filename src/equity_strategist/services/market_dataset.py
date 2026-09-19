@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.market_dataset import (
     AlignedMarketDataset,
     MarketDataset,
@@ -235,11 +236,11 @@ class MarketDatasetService:
         ]
 
         if start_candidates.empty:
-            raise ValueError(
+            raise InsufficientDataError(
                 "no common trading session available within start boundary lookback"
             )
         if end_candidates.empty:
-            raise ValueError(
+            raise InsufficientDataError(
                 "no common trading session available within end boundary lookback"
             )
 
@@ -247,7 +248,9 @@ class MarketDatasetService:
         effective_end = end_candidates[-1]
 
         if effective_start >= effective_end:
-            raise ValueError("effective period requires two distinct common sessions")
+            raise InsufficientDataError(
+                "effective period requires two distinct common sessions"
+            )
 
         aligned_series = {
             symbol: MarketSeries(

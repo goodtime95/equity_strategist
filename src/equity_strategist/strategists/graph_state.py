@@ -51,6 +51,7 @@ class RequestValidationState(TypedDict):
 
     status: str
     issues: list[str]
+    issue_codes: NotRequired[list[str]]
 
 
 class EquityGraphState(TypedDict, total=False):
@@ -149,6 +150,7 @@ def validation_to_state(
     return {
         "status": validation.status.value,
         "issues": list(validation.issues),
+        "issue_codes": list(validation.issue_codes),
     }
 
 
@@ -158,6 +160,7 @@ def validation_from_state(
     return RequestValidationResult(
         status=RequestStatus(data["status"]),
         issues=tuple(data["issues"]),
+        issue_codes=tuple(data.get("issue_codes", ())),
     )
 
 

@@ -3,6 +3,7 @@ from typing import Literal
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from equity_strategist.application.telemetry import report_progress, stage_timing
 from equity_strategist.domain.request_validation import (
     RequestStatus,
 )
@@ -147,14 +148,17 @@ class EquityStrategistGraph:
         ):
             previous_request = analysis_request_from_state(previous_request_data)
 
-            request = self.strategist.refine(
-                previous_request=previous_request,
-                clarification=state["question"],
-            )
+            with stage_timing("refinement"):
+                request = self.strategist.refine(
+                    previous_request=previous_request,
+                    clarification=state["question"],
+                )
 
         else:
-            request = self.strategist.understand(state["question"])
+            with stage_timing("understanding"):
+                request = self.strategist.understand(state["question"])
 
+        report_progress("request", request)
         return {
             "request": analysis_request_to_state(request),
         }
@@ -165,8 +169,10 @@ class EquityStrategistGraph:
     ) -> dict:
         request = analysis_request_from_state(state["request"])
 
-        validation = self.strategist.validator.validate(request)
+        with stage_timing("validation"):
+            validation = self.strategist.validator.validate(request)
 
+        report_progress("validation", validation)
         return {
             "validation": validation_to_state(validation),
         }
@@ -186,8 +192,10 @@ class EquityStrategistGraph:
     ) -> dict:
         request = analysis_request_from_state(state["request"])
 
-        plan = self.strategist.planner.plan(request)
+        with stage_timing("planning"):
+            plan = self.strategist.planner.plan(request)
 
+        report_progress("plan", plan)
         return {
             "plan": plan,
         }
@@ -196,8 +204,10 @@ class EquityStrategistGraph:
         self,
         state: EquityGraphState,
     ) -> dict:
-        execution = self.strategist.executor.execute(state["plan"])
+        with stage_timing("execution"):
+            execution = self.strategist.executor.execute(state["plan"])
 
+        report_progress("execution", execution)
         return {
             "execution": execution,
         }
@@ -206,7 +216,8 @@ class EquityStrategistGraph:
         self,
         state: EquityGraphState,
     ) -> dict:
-        answer = self.strategist.interpret(state["execution"])
+        with stage_timing("interpretation"):
+            answer = self.strategist.interpret(state["execution"])
 
         return {
             "answer": answer,
@@ -218,7 +229,8 @@ class EquityStrategistGraph:
     ) -> dict:
         validation = validation_from_state(state["validation"])
 
-        answer = self.strategist._interpret_validation(validation)
+        with stage_timing("interpretation"):
+            answer = self.strategist._interpret_validation(validation)
 
         return {
             "answer": answer,

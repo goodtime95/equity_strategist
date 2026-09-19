@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -47,6 +48,7 @@ class AnalysisRequestSnapshot(BaseModel):
 class ValidationSnapshot(BaseModel):
     status: Literal["ready", "needs_clarification", "unsupported"]
     issues: list[str]
+    issue_codes: list[str] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -62,3 +64,17 @@ class ChatResponse(BaseModel):
 class ErrorResponse(BaseModel):
     request_id: str
     detail: str
+
+
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: UUID
+    useful: bool = Field(strict=True)
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class FeedbackResponse(BaseModel):
+    feedback_id: UUID
+    request_id: UUID
+    status: Literal["stored"] = "stored"

@@ -4,8 +4,11 @@ from typing import Any
 
 import pandas as pd
 import yfinance as yf
+from curl_cffi.requests.exceptions import RequestException
+from yfinance.exceptions import YFException, YFPricesMissingError
 
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError, ProviderFailure
 from equity_strategist.domain.observations import DailyPriceObservation
 
 HOME_MARKETS = {
@@ -29,11 +32,14 @@ class YahooFinanceProvider:
         if not clean_query:
             return []
 
-        search = yf.Search(
-            clean_query,
-            max_results=10,
-            news_count=0,
-        )
+        try:
+            search = yf.Search(
+                clean_query,
+                max_results=10,
+                news_count=0,
+            )
+        except (YFException, RequestException) as error:
+            raise ProviderFailure("External provider call failed") from error
 
         assets: list[Asset] = []
 
@@ -57,14 +63,21 @@ class YahooFinanceProvider:
 
         ticker = yf.Ticker(asset.symbol)
 
-        history = ticker.history(
-            start=start_date.isoformat(),
-            end=(end_date + timedelta(days=1)).isoformat(),
-            interval="1d",
-            auto_adjust=False,
-            actions=False,
-            raise_errors=True,
-        )
+        try:
+            history = ticker.history(
+                start=start_date.isoformat(),
+                end=(end_date + timedelta(days=1)).isoformat(),
+                interval="1d",
+                auto_adjust=False,
+                actions=False,
+                raise_errors=True,
+            )
+        except YFPricesMissingError as error:
+            raise InsufficientDataError(
+                "Requested price history is unavailable"
+            ) from error
+        except (YFException, RequestException) as error:
+            raise ProviderFailure("External provider call failed") from error
 
         if history.empty:
             return []
@@ -82,7 +95,10 @@ class YahooFinanceProvider:
 
         for asset in assets:
             ticker = yf.Ticker(asset.symbol)
-            info = ticker.get_info()
+            try:
+                info = ticker.get_info()
+            except (YFException, RequestException) as error:
+                raise ProviderFailure("External provider call failed") from error
 
             score = self._primary_listing_score(
                 country=info.get("country"),

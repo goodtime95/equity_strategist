@@ -16,6 +16,7 @@ class RequestValidationResult:
 
     status: RequestStatus
     issues: tuple[str, ...] = ()
+    issue_codes: tuple[str, ...] = ()
 
     @property
     def is_ready(self) -> bool:

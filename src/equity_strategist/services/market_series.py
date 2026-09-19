@@ -2,6 +2,7 @@ from datetime import date
 
 from equity_strategist.data_providers.base import MarketDataProvider
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.market_series import MarketSeries
 from equity_strategist.extractors.price_series import extract_price_series
 from equity_strategist.tools.assets import AssetResolver
@@ -70,7 +71,7 @@ class MarketSeriesService:
         )
 
         if not observations:
-            raise ValueError(
+            raise InsufficientDataError(
                 f"No price observations available for {asset.symbol} "
                 f"between {start_date} and {end_date}"
             )

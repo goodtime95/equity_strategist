@@ -56,6 +56,7 @@ def serialize_chat_result(
         validation=ValidationSnapshot(
             status=validation.status.value,
             issues=list(validation.issues),
+            issue_codes=list(validation.issue_codes),
         ),
         evidence=evidence,
     )

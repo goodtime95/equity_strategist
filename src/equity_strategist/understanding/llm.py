@@ -1,7 +1,7 @@
 import json
 from datetime import date
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 
 from equity_strategist.domain.analysis_request import (
     AnalysisHorizon,
@@ -11,6 +11,7 @@ from equity_strategist.domain.analysis_request import (
     PerformanceMeasure,
     RankingDirection,
 )
+from equity_strategist.domain.errors import ProviderFailure
 
 ANALYSIS_REQUEST_SCHEMA = {
     "type": "object",
@@ -151,19 +152,22 @@ class LLMUnderstanding:
 
         today = date.today()
 
-        response = self.client.responses.create(
-            model=self.model,
-            instructions=self._build_instructions(today),
-            input=question,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "equity_analysis_request",
-                    "strict": True,
-                    "schema": ANALYSIS_REQUEST_SCHEMA,
-                }
-            },
-        )
+        try:
+            response = self.client.responses.create(
+                model=self.model,
+                instructions=self._build_instructions(today),
+                input=question,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "equity_analysis_request",
+                        "strict": True,
+                        "schema": ANALYSIS_REQUEST_SCHEMA,
+                    }
+                },
+            )
+        except APIError as error:
+            raise ProviderFailure("External provider call failed") from error
 
         payload = json.loads(response.output_text)
 
@@ -241,22 +245,25 @@ class LLMUnderstanding:
             "clarification": clarification,
         }
 
-        response = self.client.responses.create(
-            model=self.model,
-            instructions=self._build_refinement_instructions(today),
-            input=json.dumps(
-                input_payload,
-                ensure_ascii=False,
-            ),
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "equity_analysis_request",
-                    "strict": True,
-                    "schema": ANALYSIS_REQUEST_SCHEMA,
-                }
-            },
-        )
+        try:
+            response = self.client.responses.create(
+                model=self.model,
+                instructions=self._build_refinement_instructions(today),
+                input=json.dumps(
+                    input_payload,
+                    ensure_ascii=False,
+                ),
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "equity_analysis_request",
+                        "strict": True,
+                        "schema": ANALYSIS_REQUEST_SCHEMA,
+                    }
+                },
+            )
+        except APIError as error:
+            raise ProviderFailure("External provider call failed") from error
 
         payload = json.loads(response.output_text)
 

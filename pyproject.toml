@@ -15,7 +15,13 @@ dependencies = [
     "langgraph>=0.6",
     "fastapi>=0.115",
     "uvicorn>=0.34",
+    "SQLAlchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "alembic>=1.14,<2",
 ]
+
+[project.scripts]
+equity-strategist-retention = "equity_strategist.persistence.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -29,6 +35,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not postgres'"
+markers = ["postgres: opt-in real PostgreSQL integration tests"]
 pythonpath = ["src"]
 
 [tool.ruff]
