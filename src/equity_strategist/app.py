@@ -170,6 +170,7 @@ def build_equity_strategist() -> EquityStrategist:
 
 def build_llm_equity_strategist(
     client: OpenAI | None = None,
+    model: str = "gpt-5.6",
 ) -> EquityStrategist:
     """Build the LLM-powered Equity Strategist pipeline."""
 
@@ -177,7 +178,7 @@ def build_llm_equity_strategist(
     llm_client = client or OpenAI()
 
     return _build_equity_pipeline(
-        understanding=LLMUnderstanding(client=llm_client),
+        understanding=LLMUnderstanding(client=llm_client, model=model),
         universe_registry=universe_registry,
-        interpretation=LLMInterpretation(client=llm_client),
+        interpretation=LLMInterpretation(client=llm_client, model=model),
     )

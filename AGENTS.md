@@ -172,6 +172,16 @@ Transforms validation states and structured execution evidence into user-facing 
 
 Is the composition root that assembles concrete dependencies.
 
+### `api/`
+
+Is a transport boundary only. It maps graph outcomes into dedicated, JSON-safe
+public DTOs. Keep financial calculations, validation policy, planning, provider
+access, asset resolution, and LLM prompts in their existing layers. Do not expose
+LangGraph state or internal domain implementation objects in the HTTP contract.
+Authenticate every endpoint except `/health`; keep API and OpenAI secrets in
+environment variables only. The first HTTP milestone uses one process and one
+worker with in-memory conversation checkpoints.
+
 ---
 
 ## Capability and Service Boundaries

@@ -1,10 +1,22 @@
 # Current State
 
-Last update: 2026-09-13
+Last update: 2026-09-15
 
 ---
 
 ## Current Milestone
+
+The current milestone exposes the established analytical pipeline through an
+authenticated FastAPI service for remote clients. `/health` is a public liveness
+check; `/v1/chat` maps graph outcomes and deterministic evidence into stable v1
+JSON. Railway deployment is prepared, with remote acceptance testing pending a
+deployed URL and environment credentials. The API adds no financial capabilities
+or quantitative methodology changes.
+
+Conversation checkpoints use `InMemorySaver`. Thread continuity survives only
+while the single server process remains alive; restart or redeployment loses it.
+The service must run with one process and one worker. Durable or distributed
+checkpointing is a later milestone.
 
 Equity Strategist now supports a complete conversational quantitative workflow:
 
@@ -86,15 +98,11 @@ Python execution remains the authoritative source of quantitative facts.
 
 The full LLM-powered product path has been exercised through a live E2E battery.
 
-The product battery contains 26 analyst-style cases. The 19-case baseline passed
-before the performance expansion:
+The product battery contains 26 analyst-style cases and passed live:
 
 ```text
-19 / 19 baseline cases
+26 / 26 cases
 ```
-
-The seven added horizon, annualization, relative-performance, and excess-return
-cases require a live rerun with an OpenAI API environment.
 
 The battery covers:
 
@@ -1041,9 +1049,8 @@ Structured quantitative evidence
 LLM synthesis
 ```
 
-The immediate priority is not to maximize capability count blindly.
-
-The priority is to expand the deterministic analytical toolkit in coherent batches while preserving:
+The immediate priority is to deploy and remotely test the HTTP transport while
+preserving:
 
 * request fidelity;
 * quantitative authority;
