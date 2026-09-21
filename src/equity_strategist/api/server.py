@@ -171,13 +171,16 @@ def create_app(
                     }
                 ),
             )
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "request_id": str(run.request_id),
-                    "detail": "Internal server error",
-                },
-            )
+            status_code, detail = {
+                "insufficient_data": (422, "Insufficient market data"),
+                "ambiguous_asset": (422, "Asset identity requires clarification"),
+                "asset_not_found": (422, "Asset not found"),
+                "provider_failure": (502, "External provider unavailable"),
+            }.get(run.error_category, (500, "Internal server error"))
+            content = {"request_id": str(run.request_id), "detail": detail}
+            if status_code != 500:
+                content["error_category"] = run.error_category
+            return JSONResponse(status_code=status_code, content=content)
         return run.response
 
     @app.post(

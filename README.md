@@ -53,9 +53,12 @@ application outcomes. Missing or invalid Bearer tokens return 401; invalid bodie
 return 422, including unexpected request fields. `/v1/chat` accepts at most
 64 KiB of total body bytes, including streamed requests without `Content-Length`;
 larger bodies return 413 before JSON parsing or graph execution. Unexpected
-failures return a sanitized 500 with a `request_id`. API failure logs contain only
-the generated request ID and fixed event, stage, and error-category fields,
-without exception messages, tracebacks, headers, or provider response payloads.
+failures return a sanitized 500 with a `request_id`. Typed insufficient-data and
+asset-resolution failures return 422; provider failures return 502, with a safe
+`detail` and `error_category`. Application diagnostics record the request ID,
+stage, execution step, exception type and traceback locations (file/function/line).
+The log message is fixed: raw exception messages, source lines, locals, headers
+and provider payloads are withheld. Tracebacks never enter HTTP responses or SQL.
 
 For a clarification, send a second question with the first response's `thread_id`:
 
@@ -188,8 +191,9 @@ Known error categories are `provider_failure`, `insufficient_data`,
 `ambiguous_asset`, and `asset_not_found`; unknown exceptions remain
 `internal_error`. Yahoo's typed `YFPricesMissingError` is `insufficient_data`;
 rate-limit and network errors remain `provider_failure`. No exception-string
-classification is used. Error metadata permits only a fixed pipeline stage. HTTP failures
-retain the sanitized 500 response; these categories are stored for operators.
+classification is used. Error metadata permits only a fixed pipeline stage.
+Categories are stored for operators and mapped to HTTP 422/502 as described above;
+unknown exceptions retain HTTP 500.
 
 Telemetry stages are understanding or refinement, validation, planning, execution,
 interpretation, interpretation fallback and response serialization, plus initial
@@ -215,6 +219,9 @@ unavailable storage returns 503. Invalid bodies return 422; the existing 64 KiB
 body limit also applies to feedback. Multiple feedback submissions are permitted
 as separate records; no user identity or deduplication is implied. All feedback
 calls require the same Bearer authentication as chat. There are no history APIs.
+`useful` accepts JSON booleans and integer `1`/`0` from iPhone Shortcuts. Strings,
+floats and other integers are rejected. Comments may be omitted, null or empty;
+they are only stored when content persistence is explicitly enabled.
 
 ### Migrations and operator commands
 

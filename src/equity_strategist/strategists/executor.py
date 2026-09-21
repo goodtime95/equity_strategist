@@ -1,3 +1,4 @@
+from equity_strategist.application.telemetry import report_progress
 from equity_strategist.domain.analysis_execution import (
     AnalysisExecutionResult,
     StepExecutionResult,
@@ -85,9 +86,11 @@ class EquityExecutor:
     ) -> AnalysisExecutionResult:
         """Execute all steps of an analysis plan."""
         step_results: list[StepExecutionResult] = []
+        report_progress("execution_step", "shared_dataset")
         shared_bundle, shared_aligned = self._build_shared_dataset(plan)
 
         for step in plan.steps:
+            report_progress("execution_step", step.capability.value)
             result = self._execute_step(
                 capability=step.capability,
                 plan=plan,
