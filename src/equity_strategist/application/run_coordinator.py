@@ -1,11 +1,14 @@
 """Application lifecycle around the independent analytical engine."""
 
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from importlib.metadata import version
+from pathlib import Path
 from time import perf_counter
+from traceback import walk_tb
 from typing import TypeVar
 from uuid import UUID, uuid4
 
@@ -62,11 +65,20 @@ class AnalysisRunCoordinator:
         started = perf_counter()
         observations: list[Observation] = []
         progress: EquityGraphResult = {}
+        execution_step: str | None = None
+
+        def observe_progress(name: str, value: object) -> None:
+            nonlocal execution_step
+            if name == "execution_step":
+                execution_step = value
+            else:
+                progress[name] = value
+
         result = None
         response = None
         error = None
         failure_stage = "graph_invocation"
-        with observing(observations.append, progress.__setitem__):
+        with observing(observations.append, observe_progress):
             try:
                 result = invoke()
                 failure_stage = "response_serialization"
@@ -81,6 +93,8 @@ class AnalysisRunCoordinator:
             failure_stage = failed_stages[-1]
             if failure_stage == "serialization":
                 failure_stage = "response_serialization"
+        if error is not None:
+            self._log_failure(request_id, failure_stage, execution_step, error)
         # Snapshot construction is inside the same failure firewall as storage.
         try:
             snapshot = build_snapshot(
@@ -112,6 +126,36 @@ class AnalysisRunCoordinator:
             error_category(error),
             failure_stage if error else None,
         )
+
+    @staticmethod
+    def _log_failure(
+        request_id: UUID, stage: str, step: str | None, error: Exception
+    ) -> None:
+        """Log stack locations, never exception payloads, locals or source lines."""
+        try:
+            LOGGER.error(
+                "%s",
+                json.dumps(
+                    {
+                        "event": "analysis_failed",
+                        "request_id": str(request_id),
+                        "stage": stage,
+                        "step": step if stage == "execution" else None,
+                        "exception_type": type(error).__name__,
+                        "message": "Analysis failed; exception payload withheld",
+                        "traceback": [
+                            {
+                                "file": Path(frame.f_code.co_filename).name,
+                                "function": frame.f_code.co_name,
+                                "line": line,
+                            }
+                            for frame, line in walk_tb(error.__traceback__)
+                        ],
+                    }
+                ),
+            )
+        except Exception:
+            pass  # A broken logging sink must not suppress the public error.
 
     @staticmethod
     def _log_persistence(outcome: WriteOutcome, request_id: UUID) -> None:

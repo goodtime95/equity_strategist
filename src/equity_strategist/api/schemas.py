@@ -70,8 +70,19 @@ class FeedbackRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     request_id: UUID
-    useful: bool = Field(strict=True)
+    useful: bool = Field(
+        strict=True,
+        description="JSON boolean or integer 0/1 (iPhone Shortcuts compatibility)",
+    )
     comment: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("useful", mode="before")
+    @classmethod
+    def accept_shortcut_integer(cls, value: Any) -> Any:
+        """Accept the iPhone Shortcut's integer boolean, without broad coercion."""
+        if type(value) is int and value in (0, 1):
+            return bool(value)
+        return value
 
 
 class FeedbackResponse(BaseModel):

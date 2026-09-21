@@ -47,6 +47,19 @@ def main() -> None:
         if persistence_expected:
             assert feedback.status_code == 201
             assert feedback.json()["request_id"] == one_turn["request_id"]
+            print(f"Stored run request_id={one_turn['request_id']}")
+            for useful, comment in ((False, ""), (1, "Shortcut positive"), (0, None)):
+                checked = client.post(
+                    "/v1/feedback",
+                    headers=headers,
+                    json={
+                        "request_id": one_turn["request_id"],
+                        "useful": useful,
+                        "comment": comment,
+                    },
+                )
+                assert checked.status_code == 201
+                assert checked.json()["request_id"] == one_turn["request_id"]
             from uuid import uuid4
 
             missing = client.post(
