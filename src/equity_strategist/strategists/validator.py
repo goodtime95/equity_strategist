@@ -30,6 +30,31 @@ class AnalysisRequestValidator:
         self,
         request: AnalysisRequest,
     ) -> RequestValidationResult:
+        # Certain unsupported semantics take precedence over missing inputs.
+        unsupported_issues = self._find_unsupported_issues(request)
+        if not request.metrics:
+            metric_dependent = {
+                "benchmark_metric_unsupported",
+                "horizon_metric_unsupported",
+                "performance_measure_metric_unsupported",
+                "target_date_unsupported",
+                "period_dates_unsupported",
+            }
+            unsupported_issues = [
+                issue
+                for issue in unsupported_issues
+                if issue[0] not in metric_dependent
+            ]
+        if unsupported_issues:
+            unresolved = [
+                ("unresolved_semantics", message) for message in request.unresolved
+            ]
+            issues = unsupported_issues + unresolved
+            return RequestValidationResult(
+                status=RequestStatus.UNSUPPORTED,
+                issues=tuple(message for _, message in issues),
+                issue_codes=tuple(code for code, _ in issues),
+            )
         clarification_issues = self._find_clarification_issues(request)
 
         if clarification_issues:
@@ -37,15 +62,6 @@ class AnalysisRequestValidator:
                 status=RequestStatus.NEEDS_CLARIFICATION,
                 issues=tuple(message for _, message in clarification_issues),
                 issue_codes=tuple(code for code, _ in clarification_issues),
-            )
-
-        unsupported_issues = self._find_unsupported_issues(request)
-
-        if unsupported_issues:
-            return RequestValidationResult(
-                status=RequestStatus.UNSUPPORTED,
-                issues=tuple(message for _, message in unsupported_issues),
-                issue_codes=tuple(code for code, _ in unsupported_issues),
             )
 
         return RequestValidationResult(
@@ -103,6 +119,20 @@ class AnalysisRequestValidator:
         if not request.metrics:
             issues.append(
                 ("missing_metric", "at least one analysis metric is required")
+            )
+
+        if (
+            AnalysisMetric.PERFORMANCE in request.metrics
+            and request.start_date is not None
+            and request.start_date == request.end_date
+            and not request.horizons
+        ):
+            issues.append(
+                (
+                    "distinct_performance_dates_required",
+                    "performance requires two distinct dates or observations; "
+                    "specify a start and end date on distinct sessions",
+                )
             )
 
         non_performance_period_metrics = any(

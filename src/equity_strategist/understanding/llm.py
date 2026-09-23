@@ -472,6 +472,8 @@ target_date = 2020-03-15
 
 Unresolved information rules:
 
+Write unresolved descriptions in the language of the user question.
+
 The understanding layer decides WHAT the user wants analyzed.
 The quantitative engine decides HOW the calculation is performed.
 

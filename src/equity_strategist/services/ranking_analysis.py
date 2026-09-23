@@ -166,7 +166,6 @@ class RankingAnalysisService:
             key=lambda item: item[2],
             reverse=ranking_direction == RankingDirection.HIGHEST,
         )
-        selected_items = raw_items[:top_n]
 
         ranked_items = tuple(
             RankingItem(
@@ -184,7 +183,7 @@ class RankingAnalysisService:
                 currency,
                 observation_count,
             ) in enumerate(
-                selected_items,
+                raw_items,
                 start=1,
             )
         )
@@ -193,7 +192,8 @@ class RankingAnalysisService:
             metric="volatility",
             start_date=aligned.requested_start_date,
             end_date=aligned.requested_end_date,
-            items=ranked_items,
+            items=ranked_items[:top_n],
+            comparison_items=ranked_items,
             effective_start_date=aligned.effective_start_date,
             effective_end_date=aligned.effective_end_date,
             price_field=next(iter(dataset.series_by_symbol.values())).metadata.get(

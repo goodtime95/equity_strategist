@@ -1,5 +1,7 @@
 from datetime import date
+from math import isfinite
 
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.market_series import (
     MarketSeries,
     SeriesKind,
@@ -15,7 +17,7 @@ def compute_total_performance(
     first_price = float(price_series.values.iloc[0])
     last_price = float(price_series.values.iloc[-1])
 
-    return last_price / first_price - 1.0
+    return _finite_performance(last_price / first_price - 1.0)
 
 
 def compute_period_performance(
@@ -42,7 +44,7 @@ def compute_period_performance(
     first_price = float(selected_values.iloc[0])
     last_price = float(selected_values.iloc[-1])
 
-    return last_price / first_price - 1.0
+    return _finite_performance(last_price / first_price - 1.0)
 
 
 def compute_annualized_performance(
@@ -62,11 +64,19 @@ def compute_annualized_performance(
     growth_factor = 1.0 + total_performance
 
     if growth_factor <= 0:
-        raise ValueError("annualized performance requires a positive growth factor")
+        raise InsufficientDataError(
+            "annualized performance requires a positive growth factor"
+        )
 
     elapsed_years = elapsed_days / 365.25
 
-    return growth_factor ** (1.0 / elapsed_years) - 1.0
+    try:
+        value = growth_factor ** (1.0 / elapsed_years) - 1.0
+    except OverflowError as error:
+        raise InsufficientDataError(
+            "annualized performance exceeds numeric range"
+        ) from error
+    return _finite_performance(value)
 
 
 def compute_cumulative_performance(
@@ -106,3 +116,9 @@ def _validate_price_series(
 
     if (price_series.values <= 0).any():
         raise ValueError("price observations must be strictly positive")
+
+
+def _finite_performance(value: float) -> float:
+    if not isfinite(value):
+        raise InsufficientDataError("performance exceeds finite numeric range")
+    return value

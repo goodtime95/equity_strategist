@@ -8,6 +8,7 @@ from equity_strategist.domain.request_validation import (
     RequestValidationResult,
 )
 from equity_strategist.interpretation.base import InterpretationProvider
+from equity_strategist.interpretation.context import InterpretationContext
 from equity_strategist.strategists.executor import EquityExecutor
 from equity_strategist.strategists.planner import EquityPlanner
 from equity_strategist.strategists.validator import (
@@ -42,7 +43,14 @@ class EquityStrategist:
         """Answer a natural-language equity question."""
         request = self.understand(question)
 
-        return self._answer_request(request)
+        return self._answer_request(
+            request,
+            InterpretationContext.from_question(
+                question,
+                asset_references=request.assets
+                + ((request.benchmark,) if request.benchmark else ()),
+            ),
+        )
 
     def answer_request(
         self,
@@ -54,16 +62,17 @@ class EquityStrategist:
     def _answer_request(
         self,
         request: AnalysisRequest,
+        context: InterpretationContext | None = None,
     ) -> str:
         validation = self.validator.validate(request)
 
         if not validation.is_ready:
-            return self._interpret_validation(validation)
+            return self._interpret_validation(validation, context=context)
 
         plan = self.planner.plan(request)
         execution = self.executor.execute(plan)
 
-        return self.interpret(execution)
+        return self.interpret(execution, context=context)
 
     def understand(
         self,
@@ -86,11 +95,13 @@ class EquityStrategist:
     def interpret(
         self,
         execution: AnalysisExecutionResult,
+        context: InterpretationContext | None = None,
     ) -> str:
-        return self.interpretation.interpret(execution)
+        return self.interpretation.interpret(execution, context=context)
 
     def _interpret_validation(
         self,
         validation: RequestValidationResult,
+        context: InterpretationContext | None = None,
     ) -> str:
-        return self.interpretation.interpret_validation(validation)
+        return self.interpretation.interpret_validation(validation, context=context)

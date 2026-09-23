@@ -15,6 +15,15 @@ from equity_strategist.domain.request_validation import (
     RequestValidationResult,
 )
 from equity_strategist.domain.results import PriceOnDateResult
+from equity_strategist.interpretation.context import InterpretationContext
+from equity_strategist.interpretation.evidence import _serialize_result
+from equity_strategist.interpretation.localization import (
+    currency_note,
+    french_result,
+    french_validation_issues,
+    methodology_note,
+)
+from equity_strategist.interpretation.presentation import display_value
 
 
 class DeterministicInterpretation:
@@ -23,12 +32,32 @@ class DeterministicInterpretation:
     def interpret(
         self,
         execution: AnalysisExecutionResult,
+        context: InterpretationContext | None = None,
     ) -> str:
-        sections = tuple(
-            self._interpret_step(step_result.result)
-            for step_result in execution.step_results
-        )
-
+        sections = []
+        french = context is not None and context.language == "fr"
+        for step in execution.step_results:
+            evidence = _serialize_result(step.result)
+            if french:
+                sections.append(french_result(evidence))
+                continue
+            section = self._interpret_step(step.result)
+            notes = [methodology_note(evidence, False)]
+            for period in evidence.get("periods", [evidence]):
+                if period.get("comparison_items"):
+                    start = period.get("requested_start_date", period.get("start_date"))
+                    end = period.get("requested_end_date", period.get("end_date"))
+                    notes.append(
+                        f"Comparison context (ranking order), {start} to {end}:"
+                    )
+                    notes.extend(
+                        f"{item['rank']}. {item.get('name') or item['symbol']} "
+                        f"({item['symbol']}): {item['value_display']}"
+                        for item in period["comparison_items"]
+                    )
+                if "currency_convention" in period:
+                    notes.append(currency_note(period, False))
+            sections.append("\n".join([section, *(note for note in notes if note)]))
         return "\n\n".join(sections)
 
     def _interpret_step(
@@ -69,7 +98,10 @@ class DeterministicInterpretation:
 
         for rank, item in enumerate(result.items, start=1):
             name = item.name or item.symbol
-            lines.append(f"{rank}. {name} ({item.symbol}): {item.volatility:.2%}")
+            lines.append(
+                f"{rank}. {name} ({item.symbol}): "
+                f"{display_value(item.volatility, 'volatility')}"
+            )
 
         return "\n".join(lines)
 
@@ -81,7 +113,7 @@ class DeterministicInterpretation:
 
         answer = (
             f"{name} ({result.asset.symbol}) was "
-            f"{result.price} {result.asset.currency or ''} "
+            f"{display_value(result.price, 'price')} {result.asset.currency or ''} "
             f"on {result.effective_date}."
         )
 
@@ -113,12 +145,15 @@ class DeterministicInterpretation:
                 benchmark_name = period.benchmark.name or period.benchmark.symbol
                 lines.append(
                     f"Benchmark {benchmark_name} ({period.benchmark.symbol}): "
-                    f"{period.benchmark.value:.2%}"
+                    f"{display_value(period.benchmark.value, 'performance')}"
                 )
             for position, item in enumerate(period.items, start=1):
                 name = item.name or item.symbol
                 prefix = item.rank if item.rank is not None else position
-                lines.append(f"{prefix}. {name} ({item.symbol}): {item.value:.2%}")
+                lines.append(
+                    f"{prefix}. {name} ({item.symbol}): "
+                    f"{display_value(item.value, result.measure.value)}"
+                )
 
         return "\n".join(lines)
 
@@ -141,7 +176,7 @@ class DeterministicInterpretation:
             lines.append(
                 f"{first_name} ({item.first_symbol}) / "
                 f"{second_name} ({item.second_symbol}): "
-                f"{item.correlation:.2f}"
+                f"{display_value(item.correlation, 'correlation')}"
             )
 
         return "\n".join(lines)
@@ -163,7 +198,7 @@ class DeterministicInterpretation:
 
             line = (
                 f"{rank}. {name} ({item.symbol}): "
-                f"{item.maximum_drawdown:.2%} "
+                f"{display_value(item.maximum_drawdown, 'maximum_drawdown')} "
                 f"(peak {item.peak_date}, "
                 f"trough {item.trough_date}"
             )
@@ -192,13 +227,17 @@ class DeterministicInterpretation:
         for item in result.items:
             name = item.name or item.symbol
 
-            lines.append(f"{item.rank}. {name} ({item.symbol}): {item.value:.2%}")
+            lines.append(
+                f"{item.rank}. {name} ({item.symbol}): "
+                f"{display_value(item.value, result.metric)}"
+            )
 
         return "\n".join(lines)
 
     @staticmethod
     def interpret_validation(
         validation: RequestValidationResult,
+        context: InterpretationContext | None = None,
     ) -> str:
         if validation.status == RequestStatus.NEEDS_CLARIFICATION:
             header = "I need clarification before running the analysis:"
@@ -209,10 +248,15 @@ class DeterministicInterpretation:
         else:
             raise ValueError(f"unexpected validation status: {validation.status}")
 
-        lines = [
-            header,
-            *(f"- {issue}" for issue in validation.issues),
-        ]
+        issues = validation.issues
+        if context is not None and context.language == "fr":
+            header = (
+                "Une clarification est nécessaire avant l’analyse :"
+                if validation.status == RequestStatus.NEEDS_CLARIFICATION
+                else "Cette analyse n’est pas encore prise en charge :"
+            )
+            issues = french_validation_issues(validation)
+        lines = [header, *(f"- {issue}" for issue in issues)]
 
         return "\n".join(lines)
 
