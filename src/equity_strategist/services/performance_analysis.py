@@ -18,6 +18,7 @@ from equity_strategist.domain.analysis_results import (
     PerformancePeriodResult,
 )
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.market_dataset import (
     AlignedMarketDataset,
     MarketDatasetBundle,
@@ -220,7 +221,7 @@ class PerformanceAnalysisService:
                     asset_performance=item.asset_performance,
                     benchmark_performance=item.benchmark_performance,
                 )
-                for rank, item in enumerate(raw_items[:top_n], start=1)
+                for rank, item in enumerate(raw_items, start=1)
             )
         else:
             items = tuple(raw_items)
@@ -231,7 +232,8 @@ class PerformanceAnalysisService:
             requested_end_date=aligned.requested_end_date,
             effective_start_date=aligned.effective_start_date,
             effective_end_date=aligned.effective_end_date,
-            items=items,
+            items=items[:top_n] if ranking_direction is not None else items,
+            comparison_items=items if ranking_direction is not None else (),
             benchmark=benchmark_result,
         )
 
@@ -274,6 +276,10 @@ class PerformanceAnalysisService:
             return compute_annualized_performance(series)
         assert benchmark_total is not None
         if measure == PerformanceMeasure.RELATIVE:
+            if 1.0 + benchmark_total <= 0:
+                raise InsufficientDataError(
+                    "benchmark growth factor is not representable as positive"
+                )
             return (1.0 + asset_total) / (1.0 + benchmark_total) - 1.0
         return asset_total - benchmark_total
 

@@ -7,6 +7,7 @@ from equity_strategist.application.telemetry import report_progress, stage_timin
 from equity_strategist.domain.request_validation import (
     RequestStatus,
 )
+from equity_strategist.interpretation.context import InterpretationContext
 from equity_strategist.strategists.equity_strategist import (
     EquityStrategist,
 )
@@ -161,6 +162,9 @@ class EquityStrategistGraph:
         report_progress("request", request)
         return {
             "request": analysis_request_to_state(request),
+            "response_language": self._context(
+                {**state, "request": analysis_request_to_state(request)}
+            ).language,
         }
 
     def _validate(
@@ -217,7 +221,9 @@ class EquityStrategistGraph:
         state: EquityGraphState,
     ) -> dict:
         with stage_timing("interpretation"):
-            answer = self.strategist.interpret(state["execution"])
+            answer = self.strategist.interpret(
+                state["execution"], context=self._context(state)
+            )
 
         return {
             "answer": answer,
@@ -230,8 +236,22 @@ class EquityStrategistGraph:
         validation = validation_from_state(state["validation"])
 
         with stage_timing("interpretation"):
-            answer = self.strategist._interpret_validation(validation)
+            answer = self.strategist._interpret_validation(
+                validation, context=self._context(state)
+            )
 
         return {
             "answer": answer,
         }
+
+    @staticmethod
+    def _context(state: EquityGraphState) -> InterpretationContext:
+        request = state.get("request", {})
+        references = tuple(request.get("assets", ()))
+        if request.get("benchmark"):
+            references += (request["benchmark"],)
+        return InterpretationContext.from_question(
+            state["question"],
+            fallback_language=state.get("response_language", "en"),
+            asset_references=references,
+        )

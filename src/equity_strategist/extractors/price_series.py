@@ -1,6 +1,9 @@
+from decimal import Decimal
+
 import pandas as pd
 
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.market_series import (
     MarketSeries,
     SeriesKind,
@@ -17,7 +20,7 @@ def extract_price_series(
 ) -> MarketSeries:
     """Extract a price time series from daily price observations."""
     if not observations:
-        raise ValueError("observations cannot be empty")
+        raise InsufficientDataError("observations cannot be empty")
 
     field = "adjusted_close" if use_adjusted_close else "close"
     values_by_date: dict[pd.Timestamp, float] = {}
@@ -26,20 +29,12 @@ def extract_price_series(
         if observation.asset.symbol != asset.symbol:
             raise ValueError("all observations must belong to the requested asset")
 
-        if use_adjusted_close:
-            if observation.adjusted_close is None:
-                raise ValueError(
-                    "adjusted close is missing for at least one observation"
-                )
-
-            value = observation.adjusted_close
-        else:
-            value = observation.close
+        value = extract_price_value(observation, use_adjusted_close)
 
         observation_date = pd.Timestamp(observation.date)
 
         if observation_date in values_by_date:
-            raise ValueError(
+            raise InsufficientDataError(
                 f"duplicate price observation for {observation_date.date()}"
             )
 
@@ -51,7 +46,7 @@ def extract_price_series(
         dtype=float,
     )
 
-    return MarketSeries(
+    series = MarketSeries(
         identifier=asset.symbol,
         kind=SeriesKind.PRICE,
         values=values,
@@ -62,3 +57,23 @@ def extract_price_series(
             "source_type": "daily_price_observations",
         },
     )
+
+    # Positive Decimal inputs may underflow when normalized to binary floats.
+    if (series.values <= 0).any():
+        raise InsufficientDataError("prices must normalize to positive finite values")
+    return series
+
+
+def extract_price_value(
+    observation: DailyPriceObservation, use_adjusted_close: bool = True
+) -> Decimal:
+    """Validate the selected price field without substituting another convention."""
+    value = observation.adjusted_close if use_adjusted_close else observation.close
+    field = "adjusted close" if use_adjusted_close else "close"
+    if value is None:
+        raise InsufficientDataError(f"{field} is missing for at least one observation")
+    if not value.is_finite():
+        raise InsufficientDataError(f"{field} must be finite")
+    if value <= 0:
+        raise InsufficientDataError("price observations must be strictly positive")
+    return value

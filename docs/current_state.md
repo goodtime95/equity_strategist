@@ -1,6 +1,160 @@
 # Current State
 
-Last update: 2026-09-19
+Last update: 2026-09-23
+
+---
+
+## Production audit remediation (local, not deployed)
+
+This revision corrects reproduced deterministic defects without adding analytical
+capabilities, changing financial conventions, migrating PostgreSQL, or changing the
+HTTP response envelope. It does **not** establish the causes of the six historical
+production HTTP 500 responses. No production API writes or database operations were
+used for this remediation.
+
+### Market data and error classification
+
+`MarketSeries` rejects empty, missing and non-finite observations, including NaN,
+positive infinity and negative infinity. Its numeric/type/index invariants remain
+explicit. Price extraction requires the selected field to be present, finite and
+strictly positive. Duplicate provider dates and prices that cannot normalize to
+positive finite binary floats are unusable data. `extract_price_value` shares the
+field policy between history extraction and point-in-time price queries; adjusted
+prices never silently fall back to raw close. Explicit raw-close callers still use
+raw close.
+
+These anomalies raise `InsufficientDataError`, retaining the existing coordinator
+classification and HTTP **422 / insufficient_data**. Programming errors such as
+unrelated `ValueError` exceptions remain internal errors (HTTP 500); there is no
+blanket conversion. Scalar total/period/annualized performance and performance
+result evidence also reject non-finite results. Numerically unrepresentable relative
+benchmark growth factors produce a data failure rather than division by zero.
+
+### Validation and limitations
+
+An explicit performance or performance-ranking interval with equal start/end dates
+returns `needs_clarification` before any provider call, with code
+`distinct_performance_dates_required`. Two distinct observations/sessions are
+required. This is not a new intraday/session-return convention. Performance YTD
+continues to accept an absent start date and a YTD horizon; existing common-session
+alignment and bounded previous-session eligibility are unchanged.
+
+Certain unsupported semantics take precedence over requests for missing inputs.
+All known unsupported issues and unresolved ambiguities are returned together with
+their issue codes. For example, ranking drawdown without a period is unsupported;
+the user is not first asked for dates that cannot enable that capability. When the
+metric itself is missing, metric-dependent limitations are deferred rather than
+incorrectly asserting that dates or benchmarks are unsupported. No drawdown
+ranking, rolling volatility, new universe or FX conversion was introduced.
+
+### Response language and deterministic presentation
+
+The internal optional `InterpretationContext` carries the current question and
+expected language separately from financial results. A small deterministic French/
+English function-word heuristic selects the language. Before scoring, it masks
+asset references and the benchmark already present in the structured request, with
+whole-reference boundaries and longest matches first. It masks at most one mention
+per distinct reference, preferring exact case and using case-insensitive matching
+only when no exact match exists. The last matching occurrence is selected so
+preceding homographs (such as `de DE` or `ET ET`) remain available for language
+scoring. Thus `Compare La et Et` retains the conjunction `et`. No ticker list or
+extra provider call is used;
+unknown aliases are not guessed. Accents in asset names alone are not language
+evidence. Unidentifiable input retains the conversation language,
+or defaults to English. The optional `response_language` checkpoint field defaults
+safely for older states. No datasets or presentation objects are checkpointed.
+Structured callers without context retain the English default.
+
+The LLM receives this context plus deterministic evidence and methodology. The
+question provides intent/language, not quantitative authority. Understanding prompts
+request unresolved descriptions in the user's language. Known validation issue codes
+use deterministic localized messages; unknown/legacy free-text issues remain quoted
+verbatim to preserve meaning rather than invent a translation. Validation never
+requires a synthesis LLM. LLM exceptions and malformed/empty responses retain the
+same-language deterministic fallback. The heuristic is deliberately limited to
+French/English; instruction adherence by a successful LLM is not independently
+judged or guaranteed by a prose validator.
+
+Raw evidence fields retain their previous values and representations. Additive
+`*_display` and `*_unit` fields are generated in Python: performance, volatility and
+drawdown use percentages with two decimals; excess-return differences use percentage
+points (`pp`); correlation uses three decimals. Prices with absolute value at least
+1 (and zero) use two decimals. Nonzero prices below 1 use four significant digits,
+with trailing fractional zeros removed and at most eight decimal places; beyond
+that bound they use scientific notation with four significant digits and redundant
+mantissa zeros removed. Thus 125.678 becomes 125.68, 0.45 stays 0.45, 0.0045 stays
+0.0045, and 1e-1000 becomes 1E-1000. The same display rule handles negative prices,
+although the market-price acquisition domain still rejects nonpositive prices.
+Currency metadata and explicit ISO dates are retained. All display formatting runs
+in a fresh local Decimal context with explicit half-even rounding, wide exponent
+limits and precision sized to the input coefficient (at least 28 digits). It is
+independent of the caller's precision, rounding and traps, leaves the caller's
+context unchanged, and does not change calculation results. The LLM must cite the display fields rather
+than format or round numbers itself. Requested/effective periods, adjusted prices,
+return methodology and annualization conventions remain available in the evidence
+and deterministic answers.
+
+### Ranking evidence and currency comparisons
+
+`PerformancePeriodResult` and `RankingResult` add `comparison_items`, defaulting to
+an empty tuple for compatibility. Services retain the complete ranked calculations
+there; `items` remains the selected result bounded by `top_n`. Both are serialized
+explicitly, including ranks, raw values and display values. This applies to existing
+performance and volatility rankings. Hermès/LVMH with `top_n=1` therefore selects one
+asset while retaining both values for explanation. Existing top-result consumers
+continue to read `items`. Evidence/snapshots gain additive fields, with no database
+schema change or new snapshot version. Full comparison evidence increases payload
+size for larger universes.
+
+Performance periods disclose `currency_convention=native_returns_no_fx_conversion`
+and `currency_metadata_complete`, alongside asset and benchmark currencies. Returns
+are compared in native/local currencies without incorporating exchange-rate effects.
+S&P 500 (USD) versus Euro Stoxx 50 (EUR) must not be presented as outperformance in a
+common currency. Unknown currency metadata is disclosed. The convention does not
+change the calculated returns or perform FX conversion.
+
+### Diagnostics and operational acceptance
+
+Inspection found no demonstrated local logging defect. The coordinator already
+emits an `analysis_failed` JSON message containing request ID, stage, execution step,
+exception type and filtered stack locations (file/function/line). It excludes
+exception text, source lines, locals, prompts and credentials. The API also emits a
+`chat_failed` message keyed by the same request ID. This mechanism is unchanged;
+deterministic logging/privacy regressions remain in the suite.
+
+After a separately authorized deployment, verify the deployed revision and entry
+point, then inspect the complete raw stdout/stderr JSON events rather than only the
+log viewer's extracted `message` field. Correlate `analysis_failed` and `chat_failed`
+by request ID; verify stage, exception type and filtered stack are retained by the
+logging pipeline. The historical text “Analysis failed; exception payload withheld”
+alone cannot identify the cause. Do not claim the six historical 500s are fixed
+without a reproduction or corresponding diagnostic evidence.
+
+Offline regression coverage uses fake providers with the real registry, validator,
+planner, extractor, services, executor, graph, coordinator and HTTP mapping. It
+checks S&P 500 YTD, benchmark excess returns, requested/effective endpoints, fetch
+parameters, typed price failures, equal dates, selected/comparison evidence,
+language, display formatting, old checkpoint shapes and unchanged error envelopes.
+The default suite excludes the three opt-in PostgreSQL tests. Live Yahoo/OpenAI and
+post-deployment acceptance were not executed during this local remediation.
+
+Suggested manual acceptance after deployment (only with separate authorization):
+
+1. Run the existing `scripts/remote_api_smoke.py` against the intended environment;
+   do not introduce a second remote acceptance framework.
+2. Ask S&P 500 YTD and S&P 500 versus Euro Stoxx 50 YTD in French and English; inspect
+   horizon, effective sessions, percentage/percentage-point display and native-FX
+   disclosure as well as the raw evidence.
+3. Ask for the better performer between Hermès and LVMH with `top_n=1`; verify one
+   selected item and both assets in comparison evidence and explanation.
+4. Ask performance “hier” and inspect the extracted dates. Equal explicit dates
+   must clarify before market-data retrieval, not invent a session-return method.
+5. Ask ranking drawdown without dates and an ambiguous Eurostoxx request containing
+   unsupported constraints; ensure known limitations appear together.
+6. Verify the iPhone Shortcut and `/v1/feedback` contract. Fault injection for missing
+   adjusted prices or non-finite data belongs in an isolated test/staging instance,
+   never in the production database. Verify a controlled staging failure's complete
+   sanitized diagnostic event.
 
 ---
 

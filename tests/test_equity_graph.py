@@ -211,12 +211,14 @@ class FakeStrategist:
     def interpret(
         self,
         execution: AnalysisExecutionResult,
+        context=None,
     ) -> str:
         return "fake answer"
 
     @staticmethod
     def _interpret_validation(
         validation: RequestValidationResult,
+        context=None,
     ) -> str:
         return "validation stopped"
 

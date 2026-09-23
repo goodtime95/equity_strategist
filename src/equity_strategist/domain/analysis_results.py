@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from datetime import date
+from math import isfinite
 
 from equity_strategist.domain.analysis_request import (
     AnalysisHorizon,
     PerformanceMeasure,
     RankingDirection,
 )
+from equity_strategist.domain.errors import InsufficientDataError
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +54,16 @@ class PerformanceItem:
         if self.value is None and self.performance is None:
             raise ValueError("performance item requires a value")
         value = self.performance if self.value is None else self.value
+        if any(
+            number is not None and not isfinite(number)
+            for number in (
+                value,
+                self.total_performance,
+                self.asset_performance,
+                self.benchmark_performance,
+            )
+        ):
+            raise InsufficientDataError("performance evidence must be finite")
         object.__setattr__(self, "value", value)
         object.__setattr__(self, "performance", value)
 
@@ -79,6 +91,7 @@ class PerformancePeriodResult:
     effective_end_date: date
     items: tuple[PerformanceItem, ...]
     benchmark: PerformanceBenchmark | None = None
+    comparison_items: tuple[PerformanceItem, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,3 +236,4 @@ class RankingResult:
     price_field: str | None = None
     return_method: str | None = None
     annualization_factor: int | None = None
+    comparison_items: tuple[RankingItem, ...] = ()

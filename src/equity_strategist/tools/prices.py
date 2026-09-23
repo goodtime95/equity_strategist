@@ -2,7 +2,9 @@ from datetime import date, timedelta
 
 from equity_strategist.data_providers.base import MarketDataProvider
 from equity_strategist.domain.asset import Asset
+from equity_strategist.domain.errors import InsufficientDataError
 from equity_strategist.domain.results import PriceOnDateResult
+from equity_strategist.extractors.price_series import extract_price_value
 
 
 class PriceTool:
@@ -30,19 +32,15 @@ class PriceTool:
         )
 
         if not prices:
-            raise ValueError(
+            raise InsufficientDataError(
                 f"No market data available for {asset.symbol} "
                 f"on or before {target_date}"
             )
 
         selected_price = prices[-1]
 
-        if use_adjusted_close and selected_price.adjusted_close is not None:
-            price = selected_price.adjusted_close
-            price_type = "adjusted_close"
-        else:
-            price = selected_price.close
-            price_type = "close"
+        price = extract_price_value(selected_price, use_adjusted_close)
+        price_type = "adjusted_close" if use_adjusted_close else "close"
 
         return PriceOnDateResult(
             asset=asset,

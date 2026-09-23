@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated, NotRequired, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langgraph.channels import UntrackedValue
 
@@ -62,6 +62,7 @@ class EquityGraphState(TypedDict, total=False):
     """
 
     question: str
+    response_language: Literal["en", "fr"]
 
     request: AnalysisRequestState
     validation: RequestValidationState

@@ -2,7 +2,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+import numpy as np
 import pandas as pd
+
+from equity_strategist.domain.errors import InsufficientDataError
 
 
 class SeriesKind(StrEnum):
@@ -60,15 +63,17 @@ class MarketSeries:
         normalized = normalized.sort_index()
 
         if normalized.empty:
-            raise ValueError("values cannot be empty")
+            raise InsufficientDataError("values cannot be empty")
 
         if normalized.isna().any():
-            raise ValueError("values cannot contain missing observations")
+            raise InsufficientDataError("values cannot contain missing observations")
 
         if not pd.api.types.is_numeric_dtype(normalized.dtype):
             raise TypeError("values must contain numeric observations")
 
         normalized = normalized.astype(float)
+        if not np.isfinite(normalized).all():
+            raise InsufficientDataError("values must contain only finite observations")
 
         return normalized
 

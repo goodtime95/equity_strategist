@@ -6,6 +6,7 @@ from equity_strategist.domain.analysis_execution import (
 from equity_strategist.domain.request_validation import (
     RequestValidationResult,
 )
+from equity_strategist.interpretation.context import InterpretationContext
 
 
 class InterpretationProvider(Protocol):
@@ -14,9 +15,11 @@ class InterpretationProvider(Protocol):
     def interpret(
         self,
         execution: AnalysisExecutionResult,
+        context: InterpretationContext | None = None,
     ) -> str: ...
 
     def interpret_validation(
         self,
         validation: RequestValidationResult,
+        context: InterpretationContext | None = None,
     ) -> str: ...
