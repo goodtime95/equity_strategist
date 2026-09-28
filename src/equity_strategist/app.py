@@ -149,7 +149,9 @@ def _build_equity_pipeline(
         understanding=understanding,
         planner=planner,
         executor=executor,
-        validator=AnalysisRequestValidator(),
+        validator=AnalysisRequestValidator(
+            universe_registry=universe_registry, asset_registry=asset_registry
+        ),
         interpretation=interpretation,
     )
 

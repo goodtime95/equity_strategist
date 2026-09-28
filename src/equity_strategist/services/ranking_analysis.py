@@ -22,6 +22,10 @@ from equity_strategist.domain.market_dataset import (
     AlignedMarketDataset,
     MarketDatasetBundle,
 )
+from equity_strategist.domain.ranking_requirements import (
+    has_ranking_cardinality,
+    ranking_reference_issue,
+)
 from equity_strategist.services.market_dataset import (
     MarketDatasetService,
 )
@@ -53,8 +57,8 @@ class RankingAnalysisService:
         horizons: tuple[AnalysisHorizon, ...] = (),
         benchmark: str | None = None,
     ) -> PerformanceAnalysisResult:
-        if len(asset_queries) < 2:
-            raise ValueError("at least two assets are required for ranking")
+        if issue := ranking_reference_issue(asset_queries):
+            raise ValueError(issue)
 
         self._validate_ranking_controls(ranking_direction, top_n)
 
@@ -81,8 +85,11 @@ class RankingAnalysisService:
         horizons: tuple[AnalysisHorizon, ...] = (),
         benchmark: str | None = None,
     ) -> PerformanceAnalysisResult:
-        if len(assets) < 2:
+        if not has_ranking_cardinality(len(assets)):
             raise ValueError("at least two assets are required for ranking")
+
+        if issue := ranking_reference_issue(tuple(asset.symbol for asset in assets)):
+            raise ValueError(issue)
 
         self._validate_ranking_controls(ranking_direction, top_n)
 
@@ -106,8 +113,8 @@ class RankingAnalysisService:
         ranking_direction: RankingDirection = RankingDirection.HIGHEST,
         top_n: int | None = None,
     ) -> RankingResult:
-        if len(asset_queries) < 2:
-            raise ValueError("at least two assets are required for ranking")
+        if issue := ranking_reference_issue(asset_queries):
+            raise ValueError(issue)
 
         self._validate_ranking_controls(ranking_direction, top_n)
 

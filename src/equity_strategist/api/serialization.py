@@ -5,6 +5,7 @@ from equity_strategist.api.schemas import (
 )
 from equity_strategist.domain.request_validation import RequestStatus
 from equity_strategist.interpretation.evidence import serialize_execution_evidence
+from equity_strategist.interpretation.localization import localize_synthetic_question
 from equity_strategist.strategists.graph_state import EquityGraphResult
 
 
@@ -51,11 +52,21 @@ def serialize_chat_result(
             performance_measure=request.performance_measure.value,
             horizons=[horizon.value for horizon in request.horizons],
             user_context=request.user_context,
-            unresolved=list(request.unresolved),
+            unresolved=[
+                localize_synthetic_question(
+                    message, result.get("response_language", "en")
+                )
+                for message in request.unresolved
+            ],
         ),
         validation=ValidationSnapshot(
             status=validation.status.value,
-            issues=list(validation.issues),
+            issues=[
+                localize_synthetic_question(
+                    message, result.get("response_language", "en")
+                )
+                for message in validation.issues
+            ],
             issue_codes=list(validation.issue_codes),
         ),
         evidence=evidence,

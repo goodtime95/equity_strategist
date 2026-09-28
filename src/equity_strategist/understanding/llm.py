@@ -4,6 +4,9 @@ from datetime import date
 from openai import APIError, OpenAI
 
 from equity_strategist.domain.analysis_request import (
+    INVALID_LLM_METADATA,
+    SYNTHETIC_CLARIFICATIONS,
+    AmbiguityScope,
     AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
@@ -105,8 +108,20 @@ ANALYSIS_REQUEST_SCHEMA = {
                 "enum": ["1m", "3m", "6m", "ytd", "1y", "3y"],
             },
         },
+        "ambiguity_scopes": {
+            "type": "array",
+            "description": (
+                "Distinct scopes of remaining unresolved semantics. Nonempty scopes "
+                "require nonempty unresolved explanations; empty when resolved."
+            ),
+            "items": {
+                "type": "string",
+                "enum": [scope.value for scope in AmbiguityScope],
+            },
+        },
         "unresolved": {
             "type": "array",
+            "description": "Explain every remaining ambiguity_scopes entry.",
             "items": {
                 "type": "string",
             },
@@ -127,6 +142,7 @@ ANALYSIS_REQUEST_SCHEMA = {
         "performance_measure",
         "horizons",
         "unresolved",
+        "ambiguity_scopes",
     ],
     "additionalProperties": False,
 }
@@ -155,7 +171,8 @@ class LLMUnderstanding:
         try:
             response = self.client.responses.create(
                 model=self.model,
-                instructions=self._build_instructions(today),
+                instructions=self._build_instructions(today)
+                + self._ambiguity_instructions(),
                 input=question,
                 text={
                     "format": {
@@ -170,6 +187,7 @@ class LLMUnderstanding:
             raise ProviderFailure("External provider call failed") from error
 
         payload = json.loads(response.output_text)
+        unresolved, scopes = self._parse_ambiguities(payload)
 
         return AnalysisRequest(
             objective=AnalysisObjective(payload["objective"]),
@@ -194,7 +212,8 @@ class LLMUnderstanding:
                 AnalysisHorizon(horizon) for horizon in payload.get("horizons", [])
             ),
             user_context=question,
-            unresolved=tuple(payload["unresolved"]),
+            unresolved=unresolved,
+            ambiguity_scopes=scopes,
         )
 
     def refine(
@@ -238,6 +257,9 @@ class LLMUnderstanding:
             "performance_measure": previous_request.performance_measure.value,
             "horizons": [horizon.value for horizon in previous_request.horizons],
             "unresolved": list(previous_request.unresolved),
+            "ambiguity_scopes": [
+                scope.value for scope in previous_request.ambiguity_scopes
+            ],
         }
 
         input_payload = {
@@ -248,7 +270,8 @@ class LLMUnderstanding:
         try:
             response = self.client.responses.create(
                 model=self.model,
-                instructions=self._build_refinement_instructions(today),
+                instructions=self._build_refinement_instructions(today)
+                + self._ambiguity_instructions(),
                 input=json.dumps(
                     input_payload,
                     ensure_ascii=False,
@@ -266,6 +289,7 @@ class LLMUnderstanding:
             raise ProviderFailure("External provider call failed") from error
 
         payload = json.loads(response.output_text)
+        unresolved, scopes = self._parse_ambiguities(payload)
 
         return AnalysisRequest(
             objective=AnalysisObjective(payload["objective"]),
@@ -290,8 +314,61 @@ class LLMUnderstanding:
                 AnalysisHorizon(horizon) for horizon in payload.get("horizons", [])
             ),
             user_context=clarification,
-            unresolved=tuple(payload["unresolved"]),
+            unresolved=unresolved,
+            ambiguity_scopes=scopes,
         )
+
+    @staticmethod
+    def _parse_ambiguities(
+        payload: dict,
+    ) -> tuple[tuple[str, ...], tuple[AmbiguityScope, ...]]:
+        """Normalize untrusted scope metadata without declaring it resolved.
+
+        Cross-field conditional keywords are not part of our strict output schema
+        subset. Enforce the invariant here for both initial and refined requests.
+        Domain construction still rejects invalid internal callers.
+        """
+        for key in ("unresolved", "ambiguity_scopes"):
+            value = payload.get(key)
+            if type(value) is not list or any(
+                type(item) is not str or not item.strip() for item in value
+            ):
+                return (INVALID_LLM_METADATA,), (AmbiguityScope.UNKNOWN,)
+
+        explanations = list(payload["unresolved"])
+        scopes = []
+        known = {scope.value: scope for scope in AmbiguityScope}
+        for value in payload["ambiguity_scopes"]:
+            scope = known.get(value, AmbiguityScope.UNKNOWN)
+            if scope not in scopes:
+                scopes.append(scope)
+            if value not in known:
+                marker = SYNTHETIC_CLARIFICATIONS[AmbiguityScope.UNKNOWN]
+                if marker not in explanations:
+                    explanations.append(marker)
+        if scopes and not payload["unresolved"]:
+            explanations = [SYNTHETIC_CLARIFICATIONS[scope] for scope in scopes]
+        return tuple(explanations), tuple(scopes)
+
+    @staticmethod
+    def _ambiguity_instructions() -> str:
+        return """
+For each unresolved meaning, populate ambiguity_scopes as well as explanatory
+unresolved text. Never emit nonempty scopes with empty unresolved explanations.
+List each scope once. Use instrument only when the instrument/market reference itself
+is ambiguous, including an index asset versus a provisional sector universe.
+Use universe for uncertain identity among constituent universes; period for dates
+or horizons; currency_convention for currency or methodology; benchmark for the
+reference benchmark; asset_source for the choice between explicit assets and
+constituents; unknown for other or unclassified ambiguity. Never infer instrument
+ambiguity merely from another missing parameter. For 'Performance YTD de la santé ?'
+without a specified sector instrument, use instrument and ask which instrument.
+On refinement retain only scopes still unresolved. Clear scopes with their resolved
+explanations. If an instrument is selected, replace the provisional universe with
+that explicit asset. If explicit assets are selected, clear universe and retain
+those assets. If constituents are selected, clear assets. Preserve the metric,
+horizon, benchmark and other parameters unless the user explicitly changes them.
+"""
 
     @staticmethod
     def _parse_date(

@@ -50,6 +50,7 @@ DEFAULT_ASSETS = [
     ),
     Asset(
         symbol="^FCHI",
+        is_index=True,
         name="CAC 40",
         exchange="Paris",
         currency="EUR",
@@ -61,6 +62,7 @@ DEFAULT_ASSETS = [
     ),
     Asset(
         symbol="^STOXX50E",
+        is_index=True,
         name="Euro Stoxx 50",
         exchange="Europe",
         currency="EUR",
@@ -72,6 +74,7 @@ DEFAULT_ASSETS = [
     ),
     Asset(
         symbol="^GSPC",
+        is_index=True,
         name="S&P 500",
         exchange="United States",
         currency="USD",

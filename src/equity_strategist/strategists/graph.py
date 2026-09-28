@@ -115,6 +115,7 @@ class EquityStrategistGraph:
 
         result: EquityGraphResult = {
             "question": state["question"],
+            "response_language": self._context(state).language,
         }
 
         if "request" in state:

@@ -1,3 +1,4 @@
+from equity_strategist.domain.errors import AmbiguousUniverseError, UnknownUniverseError
 from equity_strategist.domain.universe import Universe
 
 
@@ -9,6 +10,12 @@ class UniverseRegistry:
         universes: list[Universe],
     ) -> None:
         self._universes = tuple(universes)
+        self._canonical: dict[str, Universe] = {}
+        for universe in self._universes:
+            name = universe.name.strip().casefold()
+            if name in self._canonical:
+                raise ValueError("duplicate normalized canonical universe name")
+            self._canonical[name] = universe
 
     def resolve(
         self,
@@ -18,6 +25,9 @@ class UniverseRegistry:
 
         if not clean_query:
             raise ValueError("universe query cannot be empty")
+
+        if clean_query in self._canonical:
+            return self._canonical[clean_query]
 
         matches = [
             universe
@@ -29,10 +39,10 @@ class UniverseRegistry:
         ]
 
         if not matches:
-            raise ValueError(f"unknown universe: {query}")
+            raise UnknownUniverseError(f"unknown universe: {query}")
 
         if len(matches) > 1:
-            raise ValueError(f"ambiguous universe: {query}")
+            raise AmbiguousUniverseError(query, tuple(matches))
 
         return matches[0]
 
@@ -42,8 +52,8 @@ class UniverseRegistry:
         query: str,
     ) -> bool:
         terms = {
-            universe.name.casefold(),
-            *(alias.casefold() for alias in universe.aliases),
+            universe.name.strip().casefold(),
+            *(alias.strip().casefold() for alias in universe.aliases),
         }
 
         return query in terms

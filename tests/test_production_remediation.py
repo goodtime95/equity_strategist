@@ -12,6 +12,7 @@ from equity_strategist import app as composition
 from equity_strategist.api.server import create_app
 from equity_strategist.compute.performance import compute_total_performance
 from equity_strategist.domain.analysis_request import (
+    AmbiguityScope,
     AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
@@ -352,9 +353,11 @@ def test_known_unsupported_blockers_precede_missing_period(monkeypatch, french):
     assert ("pas encore prise en charge" if french else "not supported yet") in payload[
         "answer"
     ]
-    assert ("classement + baisse maximale" if french else "rank + drawdown") in payload[
-        "answer"
-    ]
+    assert (
+        "Le classement selon la mesure « baisse maximale »"
+        if french
+        else "Ranking by maximum drawdown"
+    ) in (payload["answer"])
     assert "Eurostoxx" in payload["answer"]
     assert provider.calls == []
 
@@ -685,3 +688,352 @@ def test_provider_failure_remains_502(monkeypatch):
     assert response.json()["error_category"] == "provider_failure"
     assert repository.runs[0].error_category == "provider_failure"
     assert "private payload" not in response.text
+
+
+@pytest.mark.parametrize(
+    "incident,start,horizons,question",
+    [
+        (
+            "713ad173-abdb-4205-a937-a451ccb7eadd",
+            date(2026, 9, 17),
+            (),
+            "Fais moi le tri des stocks de l’eurostoxx 50 en fonction "
+            "de la performance sur la semaine ?",
+        ),
+        (
+            "63294652-a64b-43ad-90af-244d5736ec4d",
+            None,
+            (AnalysisHorizon.ONE_MONTH,),
+            "Fais moi le tri des stocks de l’eurostoxx 50 en fonction "
+            "de la performance sur le dernier mois ?",
+        ),
+    ],
+)
+def test_production_unavailable_universe_stops_before_planning(
+    monkeypatch, incident, start, horizons, question
+):
+    from uuid import UUID
+
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="eurostoxx 50",
+        start_date=start,
+        end_date=date(2026, 9, 24),
+        horizons=horizons,
+    )
+    graph, provider = pipeline(monkeypatch, request)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Rejected universe reached planning or provider")
+
+    monkeypatch.setattr(graph.strategist.planner, "plan", forbidden)
+    monkeypatch.setattr(provider, "get_daily_prices", forbidden)
+    monkeypatch.setattr(
+        composition.EuronextUniverseProvider, "get_constituents", forbidden
+    )
+    response, repository = http_run(graph, question)
+    payload = response.json()
+    assert response.status_code == 200, incident
+    assert payload["status"] == "unsupported"
+    assert payload["validation"]["issue_codes"] == [
+        "universe_unavailable",
+        "index_asset_available",
+    ]
+    assert payload["evidence"] is None
+    assert "constituants" in payload["answer"]
+    assert "L’indice lui-même" in payload["answer"]
+    assert "rank_performance" not in response.text
+    assert provider.calls == []
+    snapshot = repository.runs[0]
+    assert snapshot.request_id == UUID(payload["request_id"])
+    assert snapshot.outcome_status == "unsupported"
+    assert snapshot.error_category is None
+    assert snapshot.planned_capabilities == []
+    stages = snapshot.telemetry_json["stages"]
+    assert {s["stage"] for s in stages} >= {
+        "understanding",
+        "validation",
+        "interpretation",
+        "serialization",
+    }
+    assert not {"planning", "execution"} & {s["stage"] for s in stages}
+    assert all(not s["failed"] and s["duration_ms"] >= 0 for s in stages)
+
+
+@pytest.mark.parametrize("universe", ["Luxury Europe", "CAC 40"])
+def test_known_constituent_universe_still_executes(monkeypatch, universe):
+    from equity_strategist.domain.universe_constituent import UniverseConstituent
+
+    calls = []
+
+    def constituents(self, identifier):
+        calls.append(identifier)
+        return (UniverseConstituent("LVMH"), UniverseConstituent("Hermès"))
+
+    monkeypatch.setattr(
+        composition.EuronextUniverseProvider, "get_constituents", constituents
+    )
+    request = replace(
+        BASE_REQUEST, objective=AnalysisObjective.RANK, assets=(), universe=universe
+    )
+    graph, provider = pipeline(monkeypatch, request)
+    response, _ = http_run(graph, "Classe les actions selon leur performance YTD")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    items = payload["evidence"]["steps"][0]["result"]["periods"][0]["items"]
+    assert [item["symbol"] for item in items] == ["RMS.PA", "MC.PA"]
+    assert len(provider.calls) == 2
+    assert calls == (["FR0003500008-XPAR"] if universe == "CAC 40" else [])
+
+
+def test_eurostoxx_as_explicit_index_remains_supported(monkeypatch):
+    graph, provider = pipeline(
+        monkeypatch, replace(BASE_REQUEST, assets=("Euro Stoxx 50",))
+    )
+    response, _ = http_run(graph, "Performance YTD de l’indice Euro Stoxx 50 ?")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert provider.calls[0][0].symbol == "^STOXX50E"
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_sector_clarification_refines_without_loop_and_preserves_period(
+    monkeypatch, legacy
+):
+    from equity_strategist.strategists.graph_state import analysis_request_to_state
+
+    request = replace(
+        BASE_REQUEST,
+        assets=(),
+        universe="santé",
+        unresolved=("L’indice ou l’univers géographique n’est pas précisé.",),
+        ambiguity_scopes=(AmbiguityScope.INSTRUMENT,),
+    )
+    graph, provider = pipeline(monkeypatch, request)
+    refined = []
+
+    class Understanding:
+        def understand(self, question):
+            return request
+
+        def refine(self, previous_request, clarification):
+            refined.append(clarification)
+            assert previous_request.horizons == (AnalysisHorizon.YEAR_TO_DATE,)
+            assert previous_request.metrics == (AnalysisMetric.PERFORMANCE,)
+            return replace(
+                previous_request,
+                assets=("S&P 500",),
+                universe=None,
+                unresolved=(),
+                ambiguity_scopes=(),
+            )
+
+    graph.strategist.understanding = Understanding()
+    if legacy:
+        old_request = analysis_request_to_state(request)
+        del old_request["ambiguity_scopes"]
+        graph.graph.update_state(
+            {"configurable": {"thread_id": "sector"}},
+            {
+                "question": "Performance YTD de la santé ?",
+                "request": old_request,
+                "validation": {
+                    "status": "needs_clarification",
+                    "issues": list(request.unresolved),
+                },
+            },
+            as_node="understand",
+        )
+    with TestClient(create_app(lambda: graph, api_key="test-secret")) as client:
+        if not legacy:
+            first = client.post(
+                "/v1/chat",
+                headers=AUTH,
+                json={
+                    "thread_id": "sector",
+                    "question": "Performance YTD de la santé ?",
+                },
+            )
+            payload = first.json()
+            assert payload["status"] == "needs_clarification"
+            assert "Quel indice ou instrument" in payload["answer"]
+            assert "compare_performance" not in first.text
+            assert payload["request"]["horizons"] == ["ytd"]
+            assert payload["request"]["metrics"] == ["performance"]
+            assert provider.calls == []
+        # Use a verified local instrument, not an invented SXDP listing.
+        second = client.post(
+            "/v1/chat",
+            headers=AUTH,
+            json={
+                "thread_id": "sector",
+                "question": "Finalement, le S&P 500",
+                "include_evidence": True,
+            },
+        )
+    assert second.status_code == 200
+    assert second.json()["status"] == "success"
+    assert second.json()["request"]["horizons"] == ["ytd"]
+    assert second.json()["request"]["metrics"] == ["performance"]
+    assert refined == ["Finalement, le S&P 500"]
+    assert len(provider.calls) == 1
+
+
+def test_sxdp_has_no_verified_local_identity():
+    from equity_strategist.asset_registry.defaults import build_default_asset_registry
+    from equity_strategist.tools.assets import AssetResolver
+    from equity_strategist.tools.exceptions import AssetNotFoundError
+
+    resolver = AssetResolver(build_default_asset_registry())
+    for reference in ("SXDP", "SXDP index"):
+        with pytest.raises(AssetNotFoundError):
+            resolver.resolve(reference)
+
+
+@pytest.mark.parametrize("french", [False, True])
+@pytest.mark.parametrize(
+    "universe,unresolved,expected",
+    [
+        ("santé", ("Which sector index?",), "needs_clarification"),
+        ("CAC 40", (), "unsupported"),
+        ("eurostoxx 50", (), "unsupported"),
+    ],
+)
+def test_universe_messages_are_localized_without_capabilities(
+    monkeypatch, french, universe, unresolved, expected
+):
+    graph, provider = pipeline(
+        monkeypatch,
+        replace(
+            BASE_REQUEST,
+            assets=(),
+            universe=universe,
+            unresolved=unresolved,
+            ambiguity_scopes=(AmbiguityScope.INSTRUMENT,) if unresolved else (),
+        ),
+    )
+    response, _ = http_run(
+        graph,
+        "Quelle est la performance YTD ?" if french else "What is the YTD performance?",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == expected
+    assert "compare_performance" not in response.text
+    assert "rank_performance" not in response.text
+    if expected == "needs_clarification":
+        assert (
+            "Quel indice ou instrument" if french else "Which index or instrument"
+        ) in payload["answer"]
+    else:
+        assert (
+            "pas encore prise en charge" if french else "not supported yet"
+        ) in payload["answer"]
+    assert provider.calls == []
+
+
+def test_universe_registry_programming_error_remains_500(monkeypatch):
+    graph, provider = pipeline(
+        monkeypatch,
+        replace(
+            BASE_REQUEST,
+            assets=(),
+            universe="Luxury Europe",
+            objective=AnalysisObjective.RANK,
+        ),
+    )
+
+    def broken(query):
+        raise ValueError("programming defect")
+
+    monkeypatch.setattr(graph.strategist.validator.universe_registry, "resolve", broken)
+    response, repository = http_run(graph)
+    assert response.status_code == 500
+    assert repository.runs[0].error_category == "internal_error"
+    assert repository.runs[0].error_metadata == {"stage": "validation"}
+    assert provider.calls == []
+
+
+def test_ambiguous_universe_http_clarifies_without_planning(monkeypatch):
+    from equity_strategist.domain.universe import Universe, UniverseType
+    from equity_strategist.universe_registry.registry import UniverseRegistry
+
+    request = replace(
+        BASE_REQUEST, assets=(), universe="shared", objective=AnalysisObjective.RANK
+    )
+    graph, provider = pipeline(monkeypatch, request)
+    first = Universe(
+        name="One",
+        universe_type=UniverseType.STATIC,
+        asset_queries=("LVMH", "Hermès"),
+        aliases=("shared",),
+    )
+    graph.strategist.validator.universe_registry = UniverseRegistry(
+        [first, replace(first, name="Two")]
+    )
+    response, repository = http_run(graph, "Classe les actions de cet univers")
+    assert response.status_code == 200
+    assert response.json()["status"] == "needs_clarification"
+    assert response.json()["validation"]["issue_codes"] == ["ambiguous_universe"]
+    assert "Quel univers exact" in response.json()["answer"]
+    assert repository.runs[0].planned_capabilities == []
+    assert provider.calls == []
+
+
+def test_sector_followup_unresolved_external_asset_is_explicit_not_loop(monkeypatch):
+    request = replace(
+        BASE_REQUEST,
+        assets=(),
+        universe="santé",
+        unresolved=("Quel indice représente ce secteur ?",),
+        ambiguity_scopes=(AmbiguityScope.INSTRUMENT,),
+    )
+    graph, provider = pipeline(monkeypatch, request)
+    searches = []
+
+    def unavailable(query):
+        searches.append(query)
+        return []
+
+    monkeypatch.setattr(provider, "search_assets", unavailable, raising=False)
+
+    class Understanding:
+        def understand(self, question):
+            return request
+
+        def refine(self, previous_request, clarification):
+            assert clarification == "SXDP index"
+            return replace(
+                previous_request,
+                assets=(clarification,),
+                universe=None,
+                unresolved=(),
+                ambiguity_scopes=(),
+            )
+
+    graph.strategist.understanding = Understanding()
+    with TestClient(create_app(lambda: graph, api_key="test-secret")) as client:
+        first = client.post(
+            "/v1/chat",
+            headers=AUTH,
+            json={
+                "thread_id": "sxdp",
+                "question": "Performance YTD de la santé ?",
+            },
+        )
+        assert first.json()["status"] == "needs_clarification"
+        assert searches == []
+        second = client.post(
+            "/v1/chat",
+            headers=AUTH,
+            json={
+                "thread_id": "sxdp",
+                "question": "SXDP index",
+            },
+        )
+    assert second.status_code == 422
+    assert second.json()["error_category"] == "asset_not_found"
+    assert searches == ["SXDP index"]
+    assert provider.calls == []

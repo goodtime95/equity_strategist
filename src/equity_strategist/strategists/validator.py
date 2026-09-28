@@ -1,15 +1,30 @@
+from dataclasses import replace
+
+from equity_strategist.asset_registry.defaults import build_default_asset_registry
+from equity_strategist.asset_registry.registry import AssetRegistry
 from equity_strategist.domain.analysis_plan import Capability
 from equity_strategist.domain.analysis_request import (
+    AmbiguityScope,
     AnalysisMetric,
     AnalysisObjective,
     AnalysisRequest,
     PerformanceMeasure,
+    unresolved_issue_code,
+)
+from equity_strategist.domain.errors import AmbiguousUniverseError, UnknownUniverseError
+from equity_strategist.domain.ranking_requirements import (
+    has_ranking_cardinality,
+    has_unique_references,
+    ranking_reference_issue,
 )
 from equity_strategist.domain.request_validation import (
     RequestStatus,
     RequestValidationResult,
 )
+from equity_strategist.domain.universe import Universe, UniverseType
 from equity_strategist.strategists.planner import EquityPlanner
+from equity_strategist.universe_registry.defaults import build_default_universe_registry
+from equity_strategist.universe_registry.registry import UniverseRegistry
 
 
 class AnalysisRequestValidator:
@@ -26,12 +41,61 @@ class AnalysisRequestValidator:
         Capability.RANK_PERFORMANCE,
     }
 
+    def __init__(
+        self,
+        universe_registry: UniverseRegistry | None = None,
+        asset_registry: AssetRegistry | None = None,
+    ) -> None:
+        self.universe_registry = (
+            universe_registry
+            if universe_registry is not None
+            else build_default_universe_registry()
+        )
+
+        self.asset_registry = (
+            asset_registry
+            if asset_registry is not None
+            else build_default_asset_registry()
+        )
+
     def validate(
         self,
         request: AnalysisRequest,
     ) -> RequestValidationResult:
         # Certain unsupported semantics take precedence over missing inputs.
         unsupported_issues = self._find_unsupported_issues(request)
+        universe_issue, ambiguous_universe = self._universe_issue(request)
+        source_choice = bool(request.assets and request.universe)
+        asset_alternative = source_choice and self._explicit_source_supported(request)
+        provisional_reference = (
+            request.universe is not None
+            and AmbiguityScope.INSTRUMENT in request.ambiguity_scopes
+            and request.objective in {AnalysisObjective.GET, AnalysisObjective.ANALYZE}
+            and request.metrics == (AnalysisMetric.PERFORMANCE,)
+            and not request.assets
+        )
+        # Only a viable change of source can invalidate source-dependent limits.
+        # Choosing between two constituent universes never changes this capability
+        # support: an ambiguous universe therefore does not suppress those limits.
+        if asset_alternative or provisional_reference:
+            unsupported_issues = [
+                issue
+                for issue in unsupported_issues
+                if issue[0] != "universe_capability_unsupported"
+            ]
+        elif universe_issue is not None and not ambiguous_universe:
+            unsupported_issues.append(universe_issue)
+            if (
+                universe_issue[0] == "universe_unavailable"
+                and self.asset_registry.known_index(request.universe) is not None
+            ):
+                unsupported_issues.append(
+                    (
+                        "index_asset_available",
+                        "This reference is a locally recognized index and can be "
+                        "analyzed directly as an individual asset.",
+                    )
+                )
         if not request.metrics:
             metric_dependent = {
                 "benchmark_metric_unsupported",
@@ -47,7 +111,8 @@ class AnalysisRequestValidator:
             ]
         if unsupported_issues:
             unresolved = [
-                ("unresolved_semantics", message) for message in request.unresolved
+                (unresolved_issue_code(message), message)
+                for message in request.unresolved
             ]
             issues = unsupported_issues + unresolved
             return RequestValidationResult(
@@ -56,6 +121,19 @@ class AnalysisRequestValidator:
                 issue_codes=tuple(code for code, _ in issues),
             )
         clarification_issues = self._find_clarification_issues(request)
+        if provisional_reference:
+            clarification_issues.insert(
+                0,
+                (
+                    "performance_reference_ambiguous",
+                    "Which index or instrument represents the requested sector "
+                    "or market? "
+                    "Please provide its name or symbol. The performance metric and "
+                    "requested horizon will be retained.",
+                ),
+            )
+        elif ambiguous_universe and not source_choice and universe_issue is not None:
+            clarification_issues.insert(0, universe_issue)
 
         if clarification_issues:
             return RequestValidationResult(
@@ -68,16 +146,87 @@ class AnalysisRequestValidator:
             status=RequestStatus.READY,
         )
 
+    def _universe_issue(
+        self, request: AnalysisRequest
+    ) -> tuple[tuple[str, str] | None, bool]:
+        if request.universe is None or not request.universe.strip():
+            return None, False
+        try:
+            universe = self.universe_registry.resolve(request.universe)
+        except AmbiguousUniverseError as error:
+            viable = [
+                candidate
+                for candidate in error.candidates
+                if self._local_universe_issue(request, candidate) is None
+            ]
+            if not viable:
+                return self._local_universe_issue(request, error.candidates[0]), False
+            return (
+                "ambiguous_universe",
+                "Several constituent universes match this reference. "
+                "Which exact universe do you mean?\n"
+                + "; ".join(candidate.name for candidate in viable),
+            ), True
+        except UnknownUniverseError:
+            return (
+                "universe_unavailable",
+                "This constituent universe is unavailable. Specify individual assets "
+                "or choose a supported universe.",
+            ), False
+        return self._local_universe_issue(request, universe), False
+
+    @staticmethod
+    def _local_universe_issue(
+        request: AnalysisRequest, universe: Universe
+    ) -> tuple[str, str] | None:
+        # Only performance ranking currently supports constituent universes.
+        # Dynamic membership remains unknown until the existing provider workflow.
+        if (
+            request.objective == AnalysisObjective.RANK
+            and AnalysisMetric.PERFORMANCE in request.metrics
+            and universe.universe_type == UniverseType.STATIC
+            and ranking_reference_issue(universe.asset_queries) is not None
+        ):
+            if has_ranking_cardinality(len(universe.asset_queries)):
+                return (
+                    "universe_ranking_duplicate_assets",
+                    "The constituent universe contains duplicate asset references. "
+                    "Choose a universe with distinct assets.",
+                )
+            return (
+                "universe_ranking_asset_count",
+                "Ranking requires at least two assets in the constituent universe. "
+                "Choose a larger universe or specify at least two individual assets.",
+            )
+        return None
+
+    def _explicit_source_supported(self, request: AnalysisRequest) -> bool:
+        """Check whether selecting the supplied assets removes source blockers."""
+        candidate = replace(request, universe=None)
+        if self._find_unsupported_issues(candidate):
+            return False
+        source_blockers = {
+            "missing_asset_source",
+            "blank_asset",
+            "duplicate_asset",
+            "comparison_asset_count",
+            "correlation_asset_count",
+            "price_asset_count",
+        }
+        return not any(
+            code in source_blockers
+            for code, _ in self._find_clarification_issues(candidate)
+        )
+
     def _find_clarification_issues(
         self,
         request: AnalysisRequest,
     ) -> list[tuple[str, str]]:
-        issues = [("unresolved_semantics", message) for message in request.unresolved]
+        issues = [
+            (unresolved_issue_code(message), message) for message in request.unresolved
+        ]
 
         blank_asset_queries = [asset for asset in request.assets if not asset.strip()]
-        normalized_asset_queries = [
-            asset.strip().casefold() for asset in request.assets if asset.strip()
-        ]
 
         if not request.assets and request.universe is None:
             issues.append(
@@ -88,7 +237,8 @@ class AnalysisRequestValidator:
             issues.append(
                 (
                     "conflicting_asset_sources",
-                    "assets and universe cannot both be used; specify one asset source",
+                    "Should the analysis use the explicitly named assets or the "
+                    "constituents of the universe? Please specify one asset source.",
                 )
             )
 
@@ -100,7 +250,7 @@ class AnalysisRequestValidator:
                 )
             )
 
-        if len(normalized_asset_queries) != len(set(normalized_asset_queries)):
+        if not has_unique_references(request.assets):
             issues.append(
                 (
                     "duplicate_asset",
@@ -216,7 +366,7 @@ class AnalysisRequestValidator:
                 AnalysisObjective.RANK,
             }
             and request.assets
-            and len(request.assets) < 2
+            and not has_ranking_cardinality(len(request.assets))
         ):
             issues.append(
                 (
@@ -356,8 +506,8 @@ class AnalysisRequestValidator:
                 issues.append(
                     (
                         "universe_capability_unsupported",
-                        "capability does not currently support universes: "
-                        f"{capability.value}",
+                        "This analysis is not available for constituent universes. "
+                        "Specify individual instruments instead.",
                     )
                 )
 

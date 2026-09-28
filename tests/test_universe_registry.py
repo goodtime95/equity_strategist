@@ -1,5 +1,8 @@
+from dataclasses import replace
+
 import pytest
 
+from equity_strategist.domain.errors import AmbiguousUniverseError, UnknownUniverseError
 from equity_strategist.domain.universe import (
     Universe,
     UniverseType,
@@ -58,7 +61,7 @@ def test_resolve_universe_by_alias() -> None:
 
 def test_unknown_universe_raises() -> None:
     with pytest.raises(
-        ValueError,
+        UnknownUniverseError,
         match="unknown universe",
     ):
         build_registry().resolve("Unknown Universe")
@@ -98,3 +101,39 @@ def test_resolve_dynamic_universe() -> None:
     assert universe.provider == "euronext"
     assert universe.provider_identifier == "FR0003500008-XPAR"
     assert universe.asset_queries == ()
+
+
+def test_duplicate_alias_requires_clarification() -> None:
+    first = build_registry().universes[0]
+    second = replace(first, name="Another universe")
+    with pytest.raises(AmbiguousUniverseError):
+        UniverseRegistry([first, second]).resolve("Luxury")
+
+
+@pytest.mark.parametrize("query,name", [(" alpha ", "Alpha"), ("BETA", "Beta")])
+def test_canonical_name_wins_over_crossed_alias(query, name):
+    first = Universe(
+        "Alpha",
+        UniverseType.STATIC,
+        ("LVMH", "Hermès"),
+        aliases=("shared", " Beta "),
+    )
+    registry = UniverseRegistry(
+        [
+            first,
+            replace(first, name="Beta", aliases=("shared", "Alpha")),
+        ]
+    )
+    assert registry.resolve(query).name == name
+    with pytest.raises(AmbiguousUniverseError) as error:
+        registry.resolve(" SHARED ")
+    for candidate in error.value.candidates:
+        assert registry.resolve(candidate.name) == candidate
+
+
+def test_duplicate_normalized_canonical_name_is_invalid():
+    first = build_registry().universes[0]
+    with pytest.raises(
+        ValueError, match="duplicate normalized canonical universe name"
+    ):
+        UniverseRegistry([first, replace(first, name=f" {first.name.upper()} ")])

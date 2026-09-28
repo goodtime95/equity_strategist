@@ -309,7 +309,7 @@ def test_answer_request_stops_when_analysis_is_unsupported() -> None:
     answer = strategist.answer_request(request)
 
     assert "not supported yet" in answer.lower()
-    assert "rank + drawdown" in answer.lower()
+    assert "ranking by maximum drawdown" in answer.lower()
 
 
 @pytest.mark.parametrize(

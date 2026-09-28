@@ -11,3 +11,4 @@ class Asset:
     currency: str | None = None
     isin: str | None = None
     aliases: tuple[str, ...] = ()
+    is_index: bool = False
