@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from equity_strategist.domain.analysis_request import (
+    AmbiguityScope,
     AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
@@ -266,9 +267,8 @@ def test_multi_metric_universe_request_reports_unsupported_capability() -> None:
     result = AnalysisRequestValidator().validate(request)
 
     assert result.status == RequestStatus.UNSUPPORTED
-    assert "capability does not currently support universes: rank_volatility" in (
-        result.issues
-    )
+    assert result.issue_codes == ("universe_capability_unsupported",)
+    assert "rank_volatility" not in " ".join(result.issues)
 
 
 @pytest.mark.parametrize(
@@ -554,3 +554,106 @@ def test_horizon_with_non_performance_metric_requires_clarification() -> None:
 
     assert result.status == RequestStatus.NEEDS_CLARIFICATION
     assert any("cannot currently be combined" in issue for issue in result.issues)
+
+
+@pytest.mark.parametrize("universe", ["CAC 40", "Luxury Europe", "CAC40"])
+def test_available_universe_is_ready(universe):
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe=universe,
+        end_date=date(2026, 9, 24),
+        horizons=(AnalysisHorizon.ONE_MONTH,),
+    )
+    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+
+
+@pytest.mark.parametrize("universe", ["eurostoxx 50", "Unknown universe"])
+def test_unavailable_universe_never_ready(universe):
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe=universe,
+        end_date=date(2026, 9, 24),
+        horizons=(AnalysisHorizon.ONE_MONTH,),
+    )
+    result = AnalysisRequestValidator().validate(request)
+    assert result.status == RequestStatus.UNSUPPORTED
+    assert result.issue_codes == (
+        ("universe_unavailable", "index_asset_available")
+        if universe == "eurostoxx 50"
+        else ("universe_unavailable",)
+    )
+
+
+def test_injected_universe_catalog_and_ambiguous_alias():
+    from dataclasses import replace
+
+    from equity_strategist.domain.universe import Universe, UniverseType
+    from equity_strategist.universe_registry.registry import UniverseRegistry
+
+    universe = Universe(
+        name="Custom",
+        universe_type=UniverseType.STATIC,
+        asset_queries=("LVMH", "Hermès"),
+        aliases=("shared",),
+    )
+    request = AnalysisRequest(
+        objective=AnalysisObjective.RANK,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="Custom",
+        end_date=date(2026, 9, 24),
+        horizons=(AnalysisHorizon.ONE_MONTH,),
+    )
+    validator = AnalysisRequestValidator(UniverseRegistry([universe]))
+    assert validator.validate(request).status == RequestStatus.READY
+    assert AnalysisRequestValidator(UniverseRegistry([])).validate(request).status == (
+        RequestStatus.UNSUPPORTED
+    )
+    validator = AnalysisRequestValidator(
+        UniverseRegistry([universe, replace(universe, name="Other")])
+    )
+    result = validator.validate(replace(request, universe="shared"))
+    assert result.status == RequestStatus.NEEDS_CLARIFICATION
+    assert result.issue_codes == ("ambiguous_universe",)
+
+
+@pytest.mark.parametrize(
+    "constraints,expected",
+    [
+        ((), RequestStatus.NEEDS_CLARIFICATION),
+        (("currency conversion",), RequestStatus.UNSUPPORTED),
+    ],
+)
+def test_sector_reference_only_defers_dependent_limitations(constraints, expected):
+    request = AnalysisRequest(
+        objective=AnalysisObjective.GET,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="santé",
+        end_date=date(2026, 9, 24),
+        horizons=(AnalysisHorizon.YEAR_TO_DATE,),
+        constraints=constraints,
+        unresolved=("L’indice ou l’univers géographique n’est pas précisé.",),
+        ambiguity_scopes=(AmbiguityScope.INSTRUMENT,),
+    )
+    result = AnalysisRequestValidator().validate(request)
+    assert result.status == expected
+    assert "universe_capability_unsupported" not in result.issue_codes
+    if constraints:
+        assert "constraints_unsupported" in result.issue_codes
+    else:
+        assert "performance_reference_ambiguous" in result.issue_codes
+
+
+def test_explicit_known_universe_does_not_become_provisional():
+    request = AnalysisRequest(
+        objective=AnalysisObjective.GET,
+        metrics=(AnalysisMetric.PERFORMANCE,),
+        universe="CAC 40",
+        end_date=date(2026, 9, 24),
+        horizons=(AnalysisHorizon.YEAR_TO_DATE,),
+        unresolved=("Which currency?",),
+    )
+    result = AnalysisRequestValidator().validate(request)
+    assert result.status == RequestStatus.UNSUPPORTED
+    assert "universe_capability_unsupported" in result.issue_codes

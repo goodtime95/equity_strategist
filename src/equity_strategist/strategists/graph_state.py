@@ -8,6 +8,7 @@ from equity_strategist.domain.analysis_execution import (
 )
 from equity_strategist.domain.analysis_plan import AnalysisPlan
 from equity_strategist.domain.analysis_request import (
+    AmbiguityScope,
     AnalysisHorizon,
     AnalysisMetric,
     AnalysisObjective,
@@ -44,6 +45,7 @@ class AnalysisRequestState(TypedDict):
     horizons: NotRequired[list[str]]
     user_context: str | None
     unresolved: list[str]
+    ambiguity_scopes: NotRequired[list[str]]
 
 
 class RequestValidationState(TypedDict):
@@ -80,6 +82,7 @@ class EquityGraphResult(TypedDict, total=False):
     """Public result returned by EquityStrategistGraph.invoke."""
 
     question: str
+    response_language: Literal["en", "fr"]
     request: AnalysisRequest
     validation: RequestValidationResult
     plan: AnalysisPlan
@@ -111,6 +114,7 @@ def analysis_request_to_state(
         "horizons": [horizon.value for horizon in request.horizons],
         "user_context": request.user_context,
         "unresolved": list(request.unresolved),
+        "ambiguity_scopes": [scope.value for scope in request.ambiguity_scopes],
     }
 
 
@@ -130,6 +134,9 @@ def analysis_request_from_state(
         constraints=tuple(data["constraints"]),
         user_context=data["user_context"],
         unresolved=tuple(data["unresolved"]),
+        ambiguity_scopes=tuple(
+            AmbiguityScope(scope) for scope in data.get("ambiguity_scopes", [])
+        ),
         ranking_direction=(
             RankingDirection(direction)
             if (direction := data.get("ranking_direction")) is not None

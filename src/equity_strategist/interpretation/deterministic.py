@@ -19,6 +19,7 @@ from equity_strategist.interpretation.context import InterpretationContext
 from equity_strategist.interpretation.evidence import _serialize_result
 from equity_strategist.interpretation.localization import (
     currency_note,
+    english_validation_issues,
     french_result,
     french_validation_issues,
     methodology_note,
@@ -248,7 +249,7 @@ class DeterministicInterpretation:
         else:
             raise ValueError(f"unexpected validation status: {validation.status}")
 
-        issues = validation.issues
+        issues = english_validation_issues(validation)
         if context is not None and context.language == "fr":
             header = (
                 "Une clarification est nécessaire avant l’analyse :"

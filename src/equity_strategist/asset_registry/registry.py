@@ -27,6 +27,15 @@ class AssetRegistry:
             if self._is_partial_match(asset, clean_query)
         ]
 
+    def known_index(self, query: str) -> Asset | None:
+        """Return only a unique, exact, locally verified index identity."""
+        matches = [
+            asset
+            for asset in self._assets
+            if self._is_exact_match(asset, query.strip().casefold())
+        ]
+        return matches[0] if len(matches) == 1 and matches[0].is_index else None
+
     @staticmethod
     def _is_exact_match(
         asset: Asset,

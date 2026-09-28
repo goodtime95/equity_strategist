@@ -37,6 +37,7 @@ class FakeResponse:
         "constraints": [],
         "ranking_direction": null,
         "top_n": null,
+        "ambiguity_scopes": [],
         "unresolved": []
     }
     """
@@ -94,6 +95,7 @@ class FakeRankingResponse:
         "constraints": [],
         "ranking_direction": "lowest",
         "top_n": 2,
+        "ambiguity_scopes": [],
         "unresolved": []
     }
     """
@@ -153,6 +155,7 @@ def _payload(**overrides: object) -> dict[str, object]:
         "top_n": None,
         "performance_measure": "total",
         "horizons": [],
+        "ambiguity_scopes": [],
         "unresolved": [],
     }
     payload.update(overrides)

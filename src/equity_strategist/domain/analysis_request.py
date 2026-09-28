@@ -49,6 +49,29 @@ class AnalysisHorizon(StrEnum):
     THREE_YEARS = "3y"
 
 
+class AmbiguityScope(StrEnum):
+    """Fields whose meaning needs clarification, independent of explanatory prose."""
+
+    INSTRUMENT = "instrument"
+    UNIVERSE = "universe"
+    PERIOD = "period"
+    CURRENCY_CONVENTION = "currency_convention"
+    BENCHMARK = "benchmark"
+    ASSET_SOURCE = "asset_source"
+    UNKNOWN = "unknown"
+
+
+# Reserved internal markers; presentation translates these rather than quoting them.
+SYNTHETIC_CLARIFICATIONS = {scope: f"clarify_{scope.value}" for scope in AmbiguityScope}
+INVALID_LLM_METADATA = "invalid_llm_ambiguity_metadata"
+
+
+def unresolved_issue_code(message: str) -> str:
+    if message == INVALID_LLM_METADATA or message in SYNTHETIC_CLARIFICATIONS.values():
+        return message
+    return "unresolved_semantics"
+
+
 @dataclass(frozen=True, slots=True)
 class AnalysisRequest:
     """Structured representation of a user analysis request."""
@@ -73,8 +96,15 @@ class AnalysisRequest:
     top_n: int | None = None
     performance_measure: PerformanceMeasure = PerformanceMeasure.TOTAL
     horizons: tuple[AnalysisHorizon, ...] = ()
+    ambiguity_scopes: tuple[AmbiguityScope, ...] = ()
 
     def __post_init__(self) -> None:
+        if any(
+            not isinstance(scope, AmbiguityScope) for scope in self.ambiguity_scopes
+        ):
+            raise TypeError("ambiguity_scopes must contain only AmbiguityScope values")
+        if self.ambiguity_scopes and not self.unresolved:
+            raise ValueError("ambiguity_scopes require unresolved explanations")
         if (
             self.start_date is not None
             and self.end_date is not None

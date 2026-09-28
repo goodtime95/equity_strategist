@@ -472,7 +472,22 @@ def test_executor_reuses_asset_as_benchmark(
         benchmark="benchmark alias",
         performance_measure=measure,
     )
-    assert AnalysisRequestValidator().validate(request).status == RequestStatus.READY
+    from equity_strategist.domain.universe import Universe, UniverseType
+    from equity_strategist.universe_registry.registry import UniverseRegistry
+
+    catalog = UniverseRegistry(
+        [
+            Universe(
+                name="Test universe",
+                universe_type=UniverseType.STATIC,
+                asset_queries=("Asset A", "Asset B"),
+            )
+        ]
+    )
+    assert (
+        AnalysisRequestValidator(catalog).validate(request).status
+        == RequestStatus.READY
+    )
     result = executor.execute(EquityPlanner().plan(request)).step_results[0].result
     assert downloads == ["A", "B"]
     assert result.periods[0].benchmark.symbol == "A"

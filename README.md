@@ -314,3 +314,110 @@ FK enforcement, feedback cascade, hashed-thread deletion/constraints, retention
 and targeted deletion, then remove
 only that schema. The test role needs schema-creation permission. Do not point this
 at a production database. Live OpenAI/Yahoo checks remain in the existing scripts.
+
+### Index instruments, constituent universes and sector clarification
+
+An index instrument and its constituent universe are separate references. The
+local constituent catalog currently provides **Luxury Europe** (static LVMH and
+Hermès membership) and **CAC 40** (the configured Euronext constituent provider).
+Availability checks use the injected local universe registry before planning and
+never download market data. Registry availability does not guarantee that a
+subsequent provider call will succeed.
+
+**Euro Stoxx 50** remains available as an explicit index asset (`^STOXX50E`).
+Ranking its constituents is not available yet and returns the business status
+`unsupported` with issue code `universe_unavailable`, rather than HTTP 500. Other
+unknown constituent universes receive the same outcome. Adding an Euro Stoxx 50
+constituent provider is a separate product extension. An alias matching multiple
+registered universes returns `needs_clarification` (`ambiguous_universe`) only
+when selecting one can make the requested operation available. For example,
+ranking performance can proceed after selection; ranking universe volatility
+remains unsupported regardless of which universe is selected.
+
+The internal request carries an additive `ambiguity_scopes` tuple alongside
+explanatory `unresolved` text. Scopes distinguish `instrument`, `universe`,
+`period`, `currency_convention`, `benchmark`, `asset_source`, and `unknown`.
+Understanding and refinement produce and retain only the scopes still unresolved.
+For a single performance lookup (`get` or `analyze`), an explicitly scoped
+instrument ambiguity can make an index/sector reference provisional. For example,
+“Performance YTD de la santé ?” asks which instrument represents the sector
+(`performance_reference_ambiguous`), retaining performance and YTD. An ambiguity
+about currency, period or benchmark never implies instrument ambiguity.
+
+Validation retains independent limitations first. Source-dependent limitations
+can be deferred when selecting the supplied explicit assets would support the
+operation, or when a scoped instrument choice can make the performance lookup
+executable. A conflict between explicit assets and a universe asks the user to
+choose; choosing the assets removes the universe, while choosing an unavailable
+universe returns `unsupported`. A definitively unsupported operation is rejected
+without asking for an irrelevant source choice. No ambiguity prose is parsed.
+
+Index suggestions are based on a unique exact match in the injected local asset
+registry, with explicit `is_index` metadata. Only the existing CAC 40, Euro Stoxx
+50 and S&P 500 identities are marked as indices. For a recognized index,
+`index_asset_available` supplements `universe_unavailable` and explains that the
+index can be analyzed directly. Unknown baskets, partial matches and ambiguous
+asset aliases receive only a generic suggestion to specify assets or a supported
+universe. No provider lookup is involved in this presentation decision.
+
+`SXDP` and `SXDP index` have **no verified identity in the local asset registry**.
+A follow-up can proceed through understanding/refinement and the existing external
+asset-search fallback, but successful resolution and data availability are not
+guaranteed or verified by this change. No alias has been invented. A separate
+identity-coverage change should verify the intended index, provider symbol,
+currency and return variant before registering aliases and validating history.
+An unsuccessful external lookup remains an explicit asset-not-found response;
+it must not fabricate a sector result. Offline conversation tests cover a
+verified local instrument and an unsuccessful SXDP fallback separately.
+
+Public HTTP DTOs and the feedback endpoint are unchanged. Internal graph state
+and full-content request snapshots add `ambiguity_scopes`; old records without it
+load with an empty tuple and their textual ambiguities remain unclassified.
+They never suppress definitive limitations based only on prose. Existing pending
+clarification checkpoints can still be refined. No database migration is needed.
+The asset metadata flag also defaults to false for existing custom assets.
+
+The LLM boundary applies one ambiguity parser to both initial understanding and
+refinement, independently of the declared strict output schema:
+
+- Both `unresolved` and `ambiguity_scopes` must be present as JSON lists containing
+  only nonblank strings. Missing keys, null, strings or objects in place of lists,
+  nontext elements and blank strings produce `invalid_llm_ambiguity_metadata`,
+  with an `unknown` scope and a blocking clarification. No malformed metadata can
+  authorize calculation. No broad exception handler hides programming errors.
+- Valid explanatory strings are preserved. Explanations without scopes remain
+  unclassified and blocking; prose is never parsed to infer a scope.
+- Known scopes with an empty explanation list retain their scopes and receive
+  internal `clarify_*` markers. Duplicate scopes collapse in order.
+- Unknown nonblank scope strings become `unknown` and receive a generic coded
+  clarification, without echoing the untrusted scope value.
+- The domain invariant still rejects scopes without explanations for trusted
+  internal construction. Historical checkpoints without `ambiguity_scopes` remain
+  readable with an empty tuple; they are not treated as new malformed LLM output.
+
+Synthetic markers are translated in the interpretation/localization layer into
+French or English. Free questions from the model remain unchanged. HTTP mapping
+uses that same translation for existing unresolved/issue text fields, without
+changing public DTOs. The transient graph result carries the existing conversation
+language so a short follow-up retains the previous language. Internal markers do
+not appear in user-facing text; stable issue codes remain machine-readable.
+
+Before performance ranking, local static universe references must number at least
+two and be unique after `strip().casefold()` normalization. The shared rules live
+in `domain/ranking_requirements.py` and are used by validation and ranking services
+(including resolved symbols). No basket is silently deduplicated. Singletons return
+`universe_ranking_asset_count`; duplicate static references return
+`universe_ranking_duplicate_assets`, before planning or provider access. Explicit
+asset duplicates retain the existing `duplicate_asset` clarification using the
+same uniqueness predicate. Empty static definitions remain invalid at construction.
+For ambiguous aliases, clarification lists only locally viable candidates; if none
+is viable, validation rejects the request. A selected invalid basket is rejected
+again. Dynamic membership remains subject to the existing provider workflow.
+These local checks do not prove distinct listings for different aliases, resolve
+asset identities, or guarantee future data availability.
+
+Universe canonical names and aliases normalize with `strip().casefold()`. Canonical
+names must be unique at registry construction and exact canonical matches take
+precedence over aliases, including crossed name/alias collisions. Shared aliases
+remain ambiguous. Thus every canonical name proposed in a clarification can be
+selected unambiguously.

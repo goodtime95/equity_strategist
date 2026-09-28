@@ -2,6 +2,8 @@
 
 from enum import StrEnum
 
+from equity_strategist.domain.universe import Universe
+
 
 class ErrorCategory(StrEnum):
     INTERNAL_ERROR = "internal_error"
@@ -17,3 +19,15 @@ class ProviderFailure(RuntimeError):
 
 class InsufficientDataError(ValueError):
     """Available observations cannot support the requested calculation."""
+
+
+class UnknownUniverseError(ValueError):
+    """The local catalog does not provide the requested constituent universe."""
+
+
+class AmbiguousUniverseError(ValueError):
+    """Multiple registered universes match the supplied reference."""
+
+    def __init__(self, query: str, candidates: tuple[Universe, ...]) -> None:
+        super().__init__(f"ambiguous universe: {query}")
+        self.candidates = candidates
